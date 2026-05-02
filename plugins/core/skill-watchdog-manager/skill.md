@@ -1,8 +1,3 @@
----
-name: watchdog-manager
-description: Use when user says "启动守护进程", "watchdog", "守护进程状态", or needs to manage the Watchdog daemon for agent-dispatcher monitoring.
----
-
 # Watchdog Manager
 
 Watchdog 守护进程管理技能，用于启动/停止/查看守护进程状态，与 agent-dispatcher 配合使用。

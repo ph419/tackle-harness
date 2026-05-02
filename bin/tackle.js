@@ -157,6 +157,21 @@ function createBuilder() {
 // ---------------------------------------------------------------------------
 
 function cmdBuild() {
+  // Ensure harness-config.yaml exists (auto-create from template if missing)
+  var configDir = path.join(targetRoot, '.claude', 'config');
+  var targetConfigPath = path.join(configDir, 'harness-config.yaml');
+  if (!fs.existsSync(targetConfigPath)) {
+    var templatePath = path.join(packageRoot, 'templates', 'harness-config.yaml');
+    if (fs.existsSync(templatePath)) {
+      if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+      }
+      var content = fs.readFileSync(templatePath, 'utf-8');
+      fs.writeFileSync(targetConfigPath, content, 'utf-8');
+      console.log('[tackle-harness] Created default harness-config.yaml');
+    }
+  }
+
   console.log(colorize('[tackle-harness] Building plugins...', 'cyan'));
 
   var builder = createBuilder();

@@ -2,7 +2,7 @@
   "name": "skill-watchdog-manager",
   "version": "0.1.0",
   "type": "skill",
-  "description": "Watchdog 守护进程管理 Skill - 启动/停止/查看守护进程状态，与 agent-dispatcher 配合使用",
+  "description": "Use when user says \"启动守护进程\", \"watchdog\", \"守护进程状态\", or needs to manage the Watchdog daemon for agent-dispatcher monitoring.",
   "triggers": ["启动守护进程", "watchdog", "守护进程状态", "停止守护进程", "watchdog status", "watchdog start", "watchdog stop"],
   "dependencies": ["provider:watchdog"],
   "provides": ["skill:watchdog-manager"],

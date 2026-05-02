@@ -1,8 +1,3 @@
----
-name: progress-tracker
-description: Use when user says "记录进度", "保存进度", "读取进度", "查看进度", "增加授权", or needs to manage project progress tracking and recording
----
-
 # Progress Tracker
 
 项目进度追踪与记录的统一技能，合并了进度读取（原 progress-manager）和进度记录（原 record-progress）功能。

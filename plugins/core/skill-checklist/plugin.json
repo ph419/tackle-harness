@@ -2,7 +2,7 @@
   "name": "skill-checklist",
   "version": "1.0.0",
   "type": "skill",
-  "description": "开发完成质量检查 Skill - 执行检查清单验证代码质量、测试、文档、Git 和经验记录",
+  "description": "Use when user says \"运行检查\", \"执行清单\", \"检查清单\", or after completing a work package to verify quality",
   "triggers": ["运行检查", "执行清单", "检查清单", "checklist", "run checklist", "execute checklist"],
   "dependencies": [],
   "provides": ["skill:checklist"],

@@ -2,7 +2,7 @@
   "name": "skill-agent-dispatcher",
   "version": "1.1.0",
   "type": "skill",
-  "description": "子代理批量调度 Skill - 基于 Agent Teams 机制的子代理批量任务调度，支持角色赋能、记忆注入、依赖分析和并行执行",
+  "description": "Use when user says \"批量执行\", \"并行执行\", \"调度子代理\", or needs to execute multiple work packages using Agent subagents. Analyzes dependencies and dispatches tasks in parallel or sequential order.",
   "triggers": ["批量执行", "并行执行", "调度子代理", "agent-dispatcher", "batch execute", "parallel execute", "dispatch agents"],
   "dependencies": ["provider:role-registry", "provider:memory-store"],
   "provides": ["skill:agent-dispatcher"],

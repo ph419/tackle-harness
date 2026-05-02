@@ -1,8 +1,3 @@
----
-name: workflow-orchestrator
-description: Use when user says "开始工作流", "执行完整流程", or needs to run the full development workflow from requirements to completion with automatic checkpoint management.
----
-
 # Workflow Orchestrator
 
 整体工作流编排技能，协调各阶段 skills 按正确顺序执行。

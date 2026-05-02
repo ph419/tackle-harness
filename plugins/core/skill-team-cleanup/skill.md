@@ -1,8 +1,3 @@
----
-name: team-cleanup
-description: Manual cleanup tool for orphaned agent teams. Use when user says "清理团队", "清理残留", "删除过期团队", or needs to remove accumulated team/task directories.
----
-
 # Team Cleanup
 
 手动清理残留的 Agent Teams 资源的工具。

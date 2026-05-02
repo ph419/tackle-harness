@@ -1,8 +1,3 @@
----
-name: agent-dispatcher
-description: Use when user says "批量执行", "并行执行", "调度子代理", or needs to execute multiple work packages using Agent subagents. Analyzes dependencies and dispatches tasks in parallel or sequential order.
----
-
 # Agent Dispatcher (Agent Teams 版)
 
 基于 **Claude Code Agent Teams** 机制的子代理批量任务调度技能，支持角色赋能和记忆注入。

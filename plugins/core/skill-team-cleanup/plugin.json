@@ -2,7 +2,7 @@
   "name": "skill-team-cleanup",
   "version": "1.0.0",
   "type": "skill",
-  "description": "手动清理残留 Agent Teams 资源 - 清理孤立的 teams/tasks 目录，释放磁盘空间",
+  "description": "Manual cleanup tool for orphaned agent teams. Use when user says \"清理团队\", \"清理残留\", \"删除过期团队\", or needs to remove accumulated team/task directories.",
   "triggers": ["清理团队", "清理残留", "删除过期团队", "清理 teams 目录", "清理 agent teams", "cleanup team", "cleanup orphaned teams"],
   "dependencies": [],
   "provides": ["skill:team-cleanup"],

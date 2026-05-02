@@ -1,8 +1,3 @@
----
-name: completion-report
-description: Use when completing a work package or batch of tasks - generates standardized completion report and asks for next steps. Triggers after work package execution or when user says "汇报结果".
----
-
 <HARD-GATE>
 After generating the completion report, you MUST ask "下一步安排是什么？" and wait for user instruction.
 Do NOT assume what the user wants to do next.

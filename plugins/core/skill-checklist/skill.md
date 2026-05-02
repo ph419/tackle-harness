@@ -1,8 +1,3 @@
----
-name: checklist
-description: Use when user says "运行检查", "执行清单", "检查清单", or after completing a work package to verify quality
----
-
 # Checklist
 
 开发完成质量检查技能。

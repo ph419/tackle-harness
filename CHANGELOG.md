@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.19] - 2026-05-02
+
+### Changed
+
+- 统一 skill.md 元数据源：移除 10 个源 skill.md 的 front-matter 块，`plugin.json` 成为 `name`/`description`/`triggers` 的唯一真相源
+- 更新 10 个 plugin.json 的 `description` 字段为英文 "Use when..." 触发格式，确保 Claude Code skill 匹配能力不降级
+- `_generateSkillFrontMatter()` 现在为所有 13 个技能生成完整 front-matter（含 triggers）
+
+### Verified
+
+- 13/13 built skill.md front-matter 完整性验证通过（name + description + triggers）
+- triggers 与 plugin.json 一致性验证通过
+- 全项目综合验证通过（validate 0 errors、build 21 plugins、registry 一致、npm pack 无敏感文件）
+
 ## [0.0.18] - 2026-05-02
 
 ### Fixed
@@ -162,6 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.0.19]: https://github.com/ph419/tackle/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/ph419/tackle/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/ph419/tackle/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/ph419/tackle/compare/v0.0.15...v0.0.16

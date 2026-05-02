@@ -2,7 +2,7 @@
   "name": "skill-experience-logger",
   "version": "1.0.0",
   "type": "skill",
-  "description": "经验记录与提取 Skill - 分类记录开发经验教训，支持角色专属经验库和双重写入策略",
+  "description": "Use when user says \"总结经验\", \"记录经验\", \"这次学到了\", or after solving a significant problem that should be documented for future reference",
   "triggers": ["总结经验", "记录经验", "这次学到了", "experience-logger", "log experience", "lessons learned"],
   "dependencies": ["provider:memory-store"],
   "provides": ["skill:experience-logger"],

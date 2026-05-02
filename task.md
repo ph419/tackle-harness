@@ -2,14 +2,18 @@
 
 ## 📊 快速概览
 
-- **进度**: 21/21 (100.0%)
-- **最近更新**: 2026-04-27
+- **进度**: 21/21 (100.0%) ✅
+- **最近更新**: 2026-05-02
+- **当前版本**: 0.0.19
 - **规划文档**: [综合发展规划](docs/consolidated-development-plan.md)
 
 ## 📝 最近活动（非工作包）
 
 | 日期 | 活动描述 |
 |------|----------|
+| 2026-05-02 | WP-042 完成：全项目综合验证，6/6 验收标准通过（21 plugins validate、24 files build、registry 一致、settings.json hooks 完整、输出完整、npm pack 无敏感文件） |
+| 2026-05-02 | WP-041 完成：构建 output 验证，13/13 front-matter 完整、triggers 一致、config 块正确注入、companion 文件完整 |
+| 2026-05-02 | WP-040 完成：统一 skill.md 元数据源，更新 10 个 plugin.json description 为英文格式，移除 10 个源 skill.md front-matter |
 | 2026-04-22 | 验证 skill-progress-tracker 修改覆盖所有 WP 格式，补充 Format A/B 范围修正 + Format B 任务列表状态列指令 |
 | 2026-04-22 | provider-watchdog 代码优化：var→const、前台 Promise 阻塞、state 字段、pause 异步化；启用 watchdog 插件 |
 
@@ -40,6 +44,10 @@
 | WP-036 | 代码与文档同步检查及修正 | P2 | 5 | 20min | 无 | ✅ 完成 |
 | WP-037 | 文档全量更新（v0.0.15 新功能同步） | P2 | 3 | 20min | 无 | ✅ 完成 |
 | WP-038 | CI Pipeline 修复 — Build 阶段配置文件缺失 | P1 | - | 5min | 无 | ✅ 完成 |
+| WP-039 | Build 时自动创建缺失的 harness-config.yaml | P1 | - | 5min | 无 | ✅ 完成 |
+| WP-040 | 统一 skill.md 元数据源 — 移除 front-matter | P1 | 3 | 10min | 无 | ✅ 完成 |
+| WP-041 | 构建 output 验证 — triggers 注入完整性 | P1 | 4 | 10min | WP-040 | ✅ 完成 |
+| WP-042 | 全项目综合验证 | P1 | 6 | 15min | WP-041 | ✅ 完成 |
 
 ## 依赖图
 

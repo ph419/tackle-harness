@@ -2,7 +2,7 @@
   "name": "skill-human-checkpoint",
   "version": "1.0.0",
   "type": "skill",
-  "description": "工作流关键节点人介入审核机制 - 强制暂停等待用户确认，防止自动跳过重要决策点",
+  "description": "Use when reaching critical decision points in the workflow - forces pause for user review before proceeding. Triggers automatically after document creation, work package planning, or before batch execution.",
   "triggers": ["等待审核", "暂停确认", "人介入", "需要确认", "checkpoint", "暂停", "wait for review", "pause for confirmation", "need confirmation"],
   "dependencies": [],
   "provides": ["skill:human-checkpoint"],

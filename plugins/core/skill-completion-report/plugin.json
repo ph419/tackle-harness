@@ -2,7 +2,7 @@
   "name": "skill-completion-report",
   "version": "1.0.0",
   "type": "skill",
-  "description": "工作包完成报告 Skill - 标准化汇报与询问机制，生成单工作包/批量/简化完成报告，强制文档同步与门控验证",
+  "description": "Use when completing a work package or batch of tasks - generates standardized completion report and asks for next steps. Triggers after work package execution or when user says \"汇报结果\".",
   "triggers": ["完成报告", "completion-report", "工作包完成", "completion report", "work package complete"],
   "dependencies": ["provider:state-store"],
   "provides": ["skill:completion-report"],

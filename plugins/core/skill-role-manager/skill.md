@@ -1,8 +1,3 @@
----
-name: role-manager
-description: Use when user says "查看角色", "匹配角色", "角色管理", or needs to work with the role empowerment system for subagents
----
-
 # Role Manager
 
 角色赋能系统管理技能，用于查看、匹配和管理专业角色。

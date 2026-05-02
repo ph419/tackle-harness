@@ -2,7 +2,7 @@
   "name": "skill-progress-tracker",
   "version": "1.0.0",
   "type": "skill",
-  "description": "项目进度追踪与记录 - 合并 progress-manager（读取进度）和 record-progress（记录进度），统一进度管理接口",
+  "description": "Use when user says \"记录进度\", \"保存进度\", \"读取进度\", \"查看进度\", \"增加授权\", or needs to manage project progress tracking and recording",
   "triggers": ["记录进度", "保存进度", "读取进度", "查看进度", "增加授权", "record progress", "check progress", "view progress"],
   "dependencies": [],
   "provides": ["skill:progress-tracker"],

@@ -1,8 +1,3 @@
----
-name: experience-logger
-description: Use when user says "总结经验", "记录经验", "这次学到了", or after solving a significant problem that should be documented for future reference
----
-
 # Experience Logger (增强版)
 
 将开发过程中的经验教训分类记录，**支持角色专属经验库**，实现角色进化。

@@ -1,8 +1,3 @@
----
-name: human-checkpoint
-description: Use when reaching critical decision points in the workflow - forces pause for user review before proceeding. Triggers automatically after document creation, work package planning, or before batch execution.
----
-
 <HARD-GATE>
 You MUST stop and wait for user confirmation at this checkpoint.
 Do NOT proceed to the next phase until user explicitly says "继续", "确认", "执行", or similar approval.
