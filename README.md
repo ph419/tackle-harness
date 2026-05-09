@@ -3,7 +3,7 @@
 > 基于插件的 AI Agent 工作流框架，为 Claude Code 提供任务管理、工作流编排、角色管理等能力
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.0.20-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.0.23-blue.svg)](https://github.com/ph419/tackle)
 
 **[English](README.en.md)**
 
@@ -45,9 +45,21 @@ flowchart LR
 
 ## 安装
 
+**推荐方式：全局安装**
+
+```bash
+npm install -g tackle-harness
+```
+
+全局安装后可在任意项目使用 `tackle-harness` 命令，无需重复安装。
+
+**备选方式：本地安装**
+
 ```bash
 npm install tackle-harness
 ```
+
+本地安装需要使用 `npx tackle-harness` 或添加到 package.json scripts。
 
 ## 快速开始
 
@@ -55,13 +67,17 @@ npm install tackle-harness
 # 进入你的项目目录
 cd your-project
 
-# 一键初始化（构建技能 + 注册钩子 + 创建配置目录）
-npx tackle-harness init
+# 一键初始化（创建配置目录 + 注册钩子）
+tackle-harness init
 
-# 或者分步执行
-npx tackle-harness build      # 构建技能到 .claude/skills/，合并 hooks 到 settings.json
-npx tackle-harness validate   # 验证插件完整性
+# 迁移旧项目（如之前使用过本地安装）
+tackle-harness migrate
+
+# 手动更新配置（当 .claude/settings.json 变更时）
+tackle-harness build
 ```
+
+> **注意**：全局安装模式下，技能和钩子由 npm 全局管理，项目不再需要本地的 `.claude/skills/` 和 `.claude/hooks/` 目录。项目只需保留配置文件（`.claude/config/` 和 `.claude/settings.json`）。
 
 ## 使用场景
 
@@ -77,20 +93,20 @@ npx tackle-harness validate   # 验证插件完整性
 
 | 命令 | 说明 |
 |------|------|
-| `npx tackle-harness` | 默认执行 build |
-| `npx tackle-harness build` | 构建所有技能，更新 .claude/settings.json |
-| `npx tackle-harness validate` | 验证插件格式是否正确 |
-| `npx tackle-harness validate-config` | 验证 harness-config.yaml |
-| `npx tackle-harness init` | 首次安装：build + 创建 .claude/ 目录 |
-| `npx tackle-harness interactive` | 交互式插件管理（别名：`i`） |
-| `npx tackle-harness status` | 显示构建状态和插件统计信息 |
-| `npx tackle-harness config` | 显示/验证当前配置 |
-| `npx tackle-harness list` | 列出所有已注册的插件 |
-| `npx tackle-harness version` | 显示版本信息 |
-| `npx tackle-harness help` | 显示帮助信息 |
-| `npx tackle-harness --root <path>` | 指定目标项目路径（默认为当前目录） |
-| `npx tackle-harness --help` | 查看帮助信息 |
-| `npx tackle-harness --version, -v` | 显示版本信息 |
+| `tackle-harness` | 默认执行 build |
+| `tackle-harness build` | 更新 .claude/settings.json，注册全局技能和钩子 |
+| `tackle-harness validate` | 验证插件格式是否正确 |
+| `tackle-harness validate-config` | 验证 harness-config.yaml |
+| `tackle-harness init` | 首次安装：创建配置目录并注册钩子 |
+| `tackle-harness migrate` | 迁移旧项目：删除本地 skills/hooks 目录，更新配置 |
+| `tackle-harness interactive` | 交互式插件管理（别名：`i`） |
+| `tackle-harness status` | 显示构建状态和插件统计信息 |
+| `tackle-harness config` | 显示/验证当前配置 |
+| `tackle-harness list` | 列出所有已注册的插件 |
+| `tackle-harness version` | 显示版本信息 |
+| `tackle-harness --root <path>` | 指定目标项目路径（默认为当前目录） |
+
+> **本地安装备注**：如果使用 `npm install tackle-harness`（非全局安装），请在命令前加 `npx`，例如 `npx tackle-harness init`。
 
 ## 技能清单
 
@@ -143,25 +159,30 @@ Tackle Harness 包含四类插件，共 21 个：
 
 ## 构建后的项目结构
 
-执行 `tackle-harness build` 后，你的项目中会生成以下内容：
+### 全局安装模式（推荐）
+
+执行 `tackle-harness init` 后，你的项目中会生成以下内容：
+
+```
+your-project/
+  .claude/
+    config/
+      harness-config.yaml            # 配置文件（可选）
+    settings.json                    # 自动注册的 hooks
+```
+
+技能和钩子由全局安装管理，不需要本地的 `skills/` 和 `hooks/` 目录。
+
+### 本地安装模式（备选）
+
+如果使用 `npm install tackle-harness`（非全局安装），执行 `tackle-harness build` 后会生成：
 
 ```
 your-project/
   .claude/
     skills/                          # 13 个技能
       skill-task-creator/skill.md
-      skill-batch-task-creator/skill.md
-      skill-split-work-package/skill.md
-      skill-progress-tracker/skill.md
-      skill-team-cleanup/skill.md
-      skill-human-checkpoint/skill.md
-      skill-role-manager/skill.md
-      skill-checklist/skill.md
-      skill-completion-report/skill.md
-      skill-experience-logger/skill.md
-      skill-watchdog-manager/skill.md
-      skill-agent-dispatcher/skill.md
-      skill-workflow-orchestrator/skill.md
+      ...
     hooks/                           # 2 个 hook
       hook-skill-gate/index.js
       hook-session-start/index.js
@@ -172,45 +193,85 @@ your-project/
 
 ### 安装后技能没有生效？
 
-确保在项目根目录执行了 `npx tackle-harness build`，并且 `.claude/skills/` 目录下有 13 个技能文件夹。
+**全局安装模式**：
+1. 确认已全局安装：`npm list -g tackle-harness`
+2. 执行 `tackle-harness init` 初始化项目
+3. 检查 `.claude/settings.json` 是否包含 tackle-harness 的 hooks
+
+**本地安装模式**：
+1. 确认在项目根目录执行了 `npx tackle-harness build`
+2. 检查 `.claude/skills/` 目录下是否有技能文件夹
 
 ### 多个项目能否共用？
 
-每个项目独立安装、独立构建。不同项目可以安装不同版本。
+全局安装后，所有项目共用同一套技能和钩子。每个项目只需要自己的配置文件（`.claude/config/` 和 `.claude/settings.json`）。
 
-### 全局安装
+### 如何从旧版本迁移？
+
+如果之前使用本地安装模式，迁移到全局安装：
 
 ```bash
+# 1. 全局安装
 npm install -g tackle-harness
-tackle-harness build
+
+# 2. 进入项目目录
+cd your-project
+
+# 3. 执行迁移命令
+tackle-harness migrate
 ```
 
-全局安装后直接使用 `tackle-harness` 命令，无需 `npx`。
+迁移命令会：
+- 删除本地的 `.claude/skills/` 和 `.claude/hooks/` 目录
+- 更新 `.claude/settings.json` 指向全局路径
+- 保留你的配置文件（`harness-config.yaml`）
+
+### Windows 路径问题？
+
+全局安装支持 Windows 路径（如 `D:\path\to\project`），使用正斜杠或反斜杠均可：
+
+```bash
+tackle-harness build --root D:/path/to/project
+tackle-harness build --root D:\path\to\project
+```
 
 ### 如何卸载？
 
 ```bash
+# 卸载全局安装
+npm uninstall -g tackle-harness
+
+# 卸载本地安装
 npm uninstall tackle-harness
 ```
 
-技能文件会保留在 `.claude/skills/` 中，如需清理请手动删除。
+配置文件会保留在 `.claude/` 目录中，如需清理请手动删除。
 
 ### settings.json 中的 hooks 是什么？
 
 `tackle-harness build` 会自动向 `.claude/settings.json` 注入三个 hook：
-- `SessionStart` — 会话启动时扫描 plan-mode 技能，将优先级规则注入 system-reminder，确保任务创建类技能强制进入 Plan 模式
-- `PreToolUse(Edit|Write)` — 在特定状态下阻止文件编辑
-- `PostToolUse(Skill)` — 技能调用后更新状态
 
-这些 hook 指向 `node_modules/tackle-harness/` 中的脚本，不会影响你项目中的其他配置。已有的 settings.json 内容会被保留，仅追加 tackle-harness 相关的 hooks。
+- **SessionStart** — 会话启动时扫描 plan-mode 技能，将优先级规则注入 system-reminder，确保任务创建类技能强制进入 Plan 模式
+- **PreToolUse(Edit|Write)** — 在特定状态下阻止文件编辑
+- **PostToolUse(Skill)** — 技能调用后更新状态
+
+这些 hook 指向全局安装路径或 `node_modules/tackle-harness/` 中的脚本。已有的 settings.json 内容会被保留，仅追加 tackle-harness 相关的 hooks。
 
 ### 如何使用交互式模式？
 
 ```bash
-npx tackle-harness interactive
+tackle-harness interactive
 # 或使用别名
-npx tackle-harness i
+tackle-harness i
 ```
+
+交互式模式提供可视化的插件管理界面，支持：
+- 查看所有已注册插件的状态
+- 启用/停用插件
+- 查看插件依赖关系
+- 执行插件验证
+
+> 本地安装模式下请使用 `npx tackle-harness interactive`。
 
 交互式模式提供可视化的插件管理界面，支持：
 - 查看所有已注册插件的状态
@@ -223,10 +284,17 @@ npx tackle-harness i
 在 CI 环境中使用 Tackle Harness：
 
 ```yaml
+# 方式 1：全局安装（推荐）
+- name: Setup Tackle Harness
+  run: |
+    npm install -g tackle-harness
+    tackle-harness init --root $GITHUB_WORKSPACE
+
+# 方式 2：本地安装
 - name: Setup Tackle Harness
   run: |
     npm install tackle-harness
-    npx tackle-harness build --root $GITHUB_WORKSPACE
+    npx tackle-harness init --root $GITHUB_WORKSPACE
 ```
 
 项目已配置 GitHub Actions 工作流，提交 PR 或推送代码会自动运行测试。

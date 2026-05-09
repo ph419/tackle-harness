@@ -22,11 +22,36 @@
 
 使用本文档前，请确保：
 
-- 已安装 **Node.js 18+** 和 **Claude Code CLI**
-- 在项目目录中执行过 `npx tackle-harness init`
-- `.claude/skills/` 目录下有 13 个技能文件夹
+### 安装方式（推荐）
+
+全局安装 Tackle Harness（推荐）：
+
+```bash
+npm install -g tackle-harness
+tackle-harness init
+```
+
+### 迁移旧项目
+
+如果项目之前使用本地安装模式，可以迁移到全局模式：
+
+```bash
+tackle-harness migrate
+```
+
+这会删除本地的 `.claude/skills/` 和 `.claude/hooks/` 目录，改用全局安装的技能和钩子。
+
+### 备选方式（本地安装）
+
+如果无法使用全局安装，仍然可以使用本地模式：
+
+```bash
+npx tackle-harness init
+```
 
 > 本文中 `/skill-xxx` 是 Claude Code 的**斜杠命令（slash command）**，在 Claude Code 提示符中输入即可触发对应能力。你也可以用自然语言触发，如"创建工作包"、"批量执行"等。
+
+> **注意**: 全局安装后，所有技能和钩子由 `tackle-harness` 包统一提供，项目不再需要本地 `.claude/skills/` 和 `.claude/hooks/` 目录。
 
 ---
 

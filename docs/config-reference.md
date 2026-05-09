@@ -4,10 +4,82 @@
 
 ## 目录
 
+- [全局模式 vs 本地模式](#全局模式-vs-本地模式)
 - [harness-config.yaml](#harness-config-yaml)
 - ~~[skills-config.yaml](#skills-config-yaml)~~ *(已弃用)*
 - ~~[workflows-config.yaml](#workflows-config-yaml)~~ *(已弃用)*
 - [role-registry.yaml](#role-registry-yaml)
+
+---
+
+## 全局模式 vs 本地模式
+
+Tackle Harness 支持两种安装模式，配置文件的位置和职责有所不同：
+
+### 全局模式（推荐）
+
+**安装方式**：
+```bash
+npm install -g tackle-harness
+tackle-harness init
+```
+
+**配置文件位置**：
+
+| 配置文件 | 位置 | 用途 |
+|---------|------|------|
+| `harness-config.yaml` | 项目侧 `.claude/config/harness-config.yaml` | 项目级配置：工作流、角色、记忆、MCP 等 |
+| `settings.json` | 项目侧 `.claude/settings.json` | Claude Code 项目设置：权限、模型偏好等 |
+| 技能定义 | 全局安装包内（无需项目维护） | 所有技能和钩子由 `tackle-harness` 统一提供 |
+
+**优点**：
+- 无需在项目中维护 `.claude/skills/` 和 `.claude/hooks/` 目录
+- 多个项目共享同一套技能定义，更新同步
+- 项目配置更简洁，只需关注项目特定设置
+
+### 本地模式（备选）
+
+**安装方式**：
+```bash
+npx tackle-harness init
+```
+
+**配置文件位置**：
+
+| 配置文件 | 位置 | 用途 |
+|---------|------|------|
+| `harness-config.yaml` | 项目侧 `.claude/config/harness-config.yaml` | 项目级配置 |
+| `settings.json` | 项目侧 `.claude/settings.json` | Claude Code 项目设置 |
+| 技能定义 | 项目侧 `.claude/skills/` 和 `.claude/hooks/` | 每个项目各自维护技能副本 |
+
+**何时使用**：
+- 无法使用全局安装的环境
+- 需要为特定项目定制技能版本
+
+### 配置迁移
+
+从本地模式迁移到全局模式：
+
+```bash
+tackle-harness migrate
+```
+
+此命令会：
+1. 删除项目的 `.claude/skills/` 和 `.claude/hooks/` 目录
+2. 保留 `.claude/config/` 和 `.claude/settings.json` 配置
+3. 后续使用全局安装的技能和钩子
+
+### 配置验证
+
+无论使用哪种模式，都可以用以下命令验证配置：
+
+```bash
+# 验证插件格式（全局模式）
+tackle-harness validate
+
+# 验证配置文件
+tackle-harness validate-config
+```
 
 ---
 
