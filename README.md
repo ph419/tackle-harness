@@ -3,7 +3,7 @@
 > 基于插件的 AI Agent 工作流框架，为 Claude Code 提供任务管理、工作流编排、角色管理等能力
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.0.24-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/ph419/tackle)
 
 **[English](README.en.md)**
 
@@ -124,6 +124,7 @@ tackle-harness build
 | experience-logger | "总结经验" / "log experience" | 记录项目经验教训 |
 | watchdog-manager | "启动守护进程" / "start watchdog" | 启动和管理后台守护进程 |
 | task-archive | "任务归档" / "archive tasks" | 归档已完成工作包 |
+| tackle-sync | "配置tackle" / "sync" / "初始化" | 自动检测项目状态，执行初始化/更新/迁移 |
 | agent-dispatcher | "批量执行" / "dispatch agents" | 调度多个子代理并行工作 |
 | workflow-orchestrator | "开始工作流" / "start workflow" | 编排完整工作流 |
 

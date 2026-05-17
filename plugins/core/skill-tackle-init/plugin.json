@@ -1,9 +1,0 @@
-{
-  "name": "skill-tackle-init",
-  "version": "1.0.0",
-  "type": "skill",
-  "description": "Use when user says '初始化 tackle', 'init tackle', 'setup tackle', or wants to initialize tackle-harness in the current project directory",
-  "metadata": {
-    "triggers": ["初始化 tackle", "init tackle", "setup tackle", "初始化 harness"]
-  }
-}

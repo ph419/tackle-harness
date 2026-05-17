@@ -147,8 +147,8 @@
       "config": {}
     },
     {
-      "name": "skill-tackle-init",
-      "source": "skill-tackle-init",
+      "name": "skill-tackle-sync",
+      "source": "skill-tackle-sync",
       "enabled": true,
       "config": {}
     },

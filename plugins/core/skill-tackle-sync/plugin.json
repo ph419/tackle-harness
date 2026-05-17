@@ -1,0 +1,10 @@
+{
+  "name": "skill-tackle-sync",
+  "version": "1.0.0",
+  "type": "skill",
+  "description": "Auto-detect project state and setup/update/migrate tackle-harness. Use when user says '安装tackle', '配置tackle', '初始化', '更新', '迁移', 'sync', or mentions tackle-harness setup",
+  "triggers": ["安装tackle", "配置tackle", "初始化", "更新", "迁移", "sync", "init", "build", "migrate"],
+  "dependencies": [],
+  "provides": ["skill:tackle-sync"],
+  "config": {}
+}

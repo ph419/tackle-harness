@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-05-17
+
+### Changed
+
+- `skill-tackle-init` 升级为 `skill-tackle-sync`：合并 init/build/migrate 为单一技能，自动检测项目状态（未初始化/已初始化/旧版残留）并执行对应操作，无需用户手动选择命令（WP-053, WP-054）
+
 ## [0.0.24] - 2026-05-17
 
 ### Added
@@ -229,6 +235,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.1.0]: https://github.com/ph419/tackle/compare/v0.0.24...v0.1.0
 [0.0.24]: https://github.com/ph419/tackle/compare/v0.0.23...v0.0.24
 [0.0.23]: https://github.com/ph419/tackle/compare/v0.0.21...v0.0.23
 [0.0.21]: https://github.com/ph419/tackle/compare/v0.0.20...v0.0.21

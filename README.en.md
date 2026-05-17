@@ -3,7 +3,7 @@
 > A plugin-based AI Agent workflow framework that provides task management, workflow orchestration, and role management for Claude Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.0.24-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/ph419/tackle)
 
 **[中文文档](README.md)**
 
@@ -123,8 +123,8 @@ tackle-harness build
 | watchdog-manager | "启动守护进程" / "start watchdog" | Start and manage background watchdog daemons |
 | agent-dispatcher | "批量执行" / "dispatch agents" | Dispatch multiple sub-agents in parallel |
 | workflow-orchestrator | "开始工作流" / "start workflow" | Orchestrate complete workflows |
-| tackle-init | "初始化 tackle" / "setup tackle" | Initialize Tackle Harness in a project |
 | task-archive | "任务归档" / "archive tasks" | Archive completed work packages |
+| tackle-sync | "配置tackle" / "sync" / "init" | Auto-detect project state and setup/update/migrate |
 
 ## Workflow Overview
 
