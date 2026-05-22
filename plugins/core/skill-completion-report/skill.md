@@ -64,7 +64,7 @@ digraph completion {
 | 文档 | 用途 | 必须同步 |
 |------|------|----------|
 | `task.md` | 任务清单（主索引） | ✅ |
-| `docs/wp/WP-XXX.md` | 工作包详情 | ⚠️ 如存在 |
+| `docs/wp/WP-XXX.md` | 工作包详情（XXX 为数字编号，支持任意位数） | ⚠️ 如存在 |
 
 **同步内容**：
 - 更新工作包状态：`📋 待开始` → `✅ 已完成`
@@ -78,7 +78,7 @@ digraph completion {
 同步完成后，必须执行以下验证：
 
 ```bash
-# 验证 task.md 状态已更新
+# 验证 task.md 状态已更新（替换为实际编号，如 WP-56 或 WP-1056）
 grep "WP-XXX" task.md | grep "✅ 完成"
 ```
 
@@ -94,7 +94,7 @@ grep "WP-XXX" task.md | grep "✅ 完成"
 **同步完成后必须运行门控验证**：
 
 ```bash
-node .claude/validators/skill-gate.js completion-report WP-XXX
+node .claude/validators/skill-gate.js completion-report WP-XXX  # 替换为实际编号，如 WP-56 或 WP-1056
 ```
 
 | 结果 | 处理 |
@@ -111,7 +111,7 @@ node .claude/validators/skill-gate.js completion-report WP-XXX
 ```markdown
 帅哥，工作包执行完成！
 
-## 📦 WP-XXX: 工作包名称
+## 📦 WP-XXX: 工作包名称  <!-- XXX = 实际数字编号，无位数限制 -->
 
 ### 执行结果
 | 任务ID | 任务名称 | 状态 | 说明 |
@@ -160,7 +160,7 @@ test/unit/test_xxx.gd   # 新增
 
 | 工作包 | 状态 | 子任务 | 测试 | 说明 |
 |--------|------|--------|------|------|
-| WP-XXX | ✅ 完成 | 3/3 | 9/9 | - |
+| WP-XXX | ✅ 完成 | 3/3 | 9/9 | - |  <!-- 编号支持任意位数，如 WP-56 或 WP-1056 -->
 | WP-YYY | ✅ 完成 | 2/2 | 6/6 | - |
 | WP-ZZZ | ❌ 阻塞 | 1/3 | 2/6 | 依赖未满足 |
 

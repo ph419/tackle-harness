@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-05-22
+
+### Fixed
+
+- 移除 6 个 Skill 文档中的三位数编号硬约束，使 WP 编号支持任意位数（WP-1 ~ WP-9999+）（WP-057 ~ WP-060）
+  - `skill-split-work-package`: `WP-XXX (三位数字)` → `WP-NNN (数字编号，无位数限制)`，子任务 ID 同步去除零填充
+  - `skill-task-creator`: 添加编号说明注释，明确 `XXX` 为数字占位符而非固定位数
+  - `skill-batch-task-creator`: 新增三位/四位混合示例说明，去除连续性三位假设
+  - `skill-agent-dispatcher`: 架构图和命名规范中补充四位编号示例
+  - `skill-completion-report`: 报告模板和验证命令中添加任意位数说明
+  - `skill-progress-tracker`: 示例表和 Format 说明中补充四位编号示例
+
+### Verified
+
+- 164 个测试全通过（两轮独立验证），23 plugins 构建 0 error
+
 ## [0.1.0] - 2026-05-17
 
 ### Changed
@@ -235,6 +251,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.1.1]: https://github.com/ph419/tackle/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ph419/tackle/compare/v0.0.24...v0.1.0
 [0.0.24]: https://github.com/ph419/tackle/compare/v0.0.23...v0.0.24
 [0.0.23]: https://github.com/ph419/tackle/compare/v0.0.21...v0.0.23
