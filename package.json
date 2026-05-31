@@ -1,6 +1,6 @@
 {
   "name": "tackle-harness",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Plugin-based AI Agent Harness framework for Claude Code",
   "bin": {
     "tackle-harness": "bin/tackle.js"
@@ -13,11 +13,11 @@
   "scripts": {
     "build": "node bin/tackle.js build",
     "validate": "node bin/tackle.js validate",
-    "test": "node --test test/**/*.js",
-    "test:runtime": "node --test test/runtime/*.js",
-    "test:integration": "node --test test/integration/*.js",
-    "test:e2e": "node --test test/e2e/*.js",
-    "test:coverage": "node --experimental-test-coverage --test test/**/*.js",
+    "test": "node scripts/test-runner.js",
+    "test:runtime": "node scripts/test-runner.js test/runtime",
+    "test:integration": "node scripts/test-runner.js test/integration",
+    "test:e2e": "node scripts/test-runner.js test/e2e",
+    "test:coverage": "node --experimental-test-coverage scripts/test-runner.js",
     "test:smoke": "node test/smoke-test.js",
     "postinstall": "node bin/tackle.js setup-global"
   },

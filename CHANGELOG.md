@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-05-31
+
+### Fixed
+
+- **CI 跨平台 glob 兼容性修复**：新建 `scripts/test-runner.js` 跨平台测试运行器，使用 Node.js `fs` 模块递归发现测试文件，替代依赖 shell glob 展开的 `test/**/*.js` 模式，修复 Windows（cmd.exe 不展开 `**`）、Ubuntu（sh/dash 无 globstar）等所有 CI 环境下 `npm test` 失败的问题
+
 ## [0.2.1] - 2026-05-31
 
 ### Fixed
