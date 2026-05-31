@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-05-31
+
+### Fixed
+
+- **文档断链修复**：将 README.md、README.en.md、CONTRIBUTING.md 及 examples 目录下所有相对路径链接改为绝对 GitHub URL，确保在 GitHub、npm 等所有平台均可正常点击跳转
+- **CONTRIBUTING.md 路径错误修复**：修正 `docs/xxx.md` → `docs/design/xxx.md` 的错误路径
+
 ## [0.2.0] - 2026-05-31
 
 ### Added
@@ -304,6 +311,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.2.1]: https://github.com/ph419/tackle/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ph419/tackle/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/ph419/tackle/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ph419/tackle/compare/v0.1.0...v0.1.1

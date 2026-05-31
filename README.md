@@ -3,9 +3,9 @@
 > 基于插件的 AI Agent 工作流框架，为 Claude Code 提供任务管理、工作流编排、角色管理等能力
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](https://github.com/ph419/tackle)
 
-**[English](README.en.md)**
+**[English](https://github.com/ph419/tackle/blob/main/README.en.md)**
 
 ## 为什么选择 Tackle Harness
 
@@ -89,7 +89,7 @@ tackle-harness build
 - **代码审查** — 质量检查 → 文档同步 → 经验记录
 - **项目收尾** — 进度汇总 → 经验沉淀 → 完成报告
 
-> 完整的场景流程图和操作步骤请参阅 [日常工作流最佳实践](docs/design/daily-workflow-guide.md)
+> 完整的场景流程图和操作步骤请参阅 [日常工作流最佳实践](https://github.com/ph419/tackle/blob/main/docs/design/daily-workflow-guide.md)
 
 ## 命令一览
 
@@ -146,7 +146,7 @@ tackle-harness build
 | **P3 检查** | 代码/测试/文档质量验证，提炼经验 | checklist, experience-logger |
 | **P4 汇报** | 生成完成报告，询问下一步 | completion-report |
 
-> 完整的数据流图和阶段细节请参阅 [docs/ai_workflow.md](docs/design/ai_workflow.md)
+> 完整的数据流图和阶段细节请参阅 [docs/ai_workflow.md](https://github.com/ph419/tackle/blob/main/docs/design/ai_workflow.md)
 
 ## 插件架构
 
@@ -159,7 +159,7 @@ Tackle Harness 包含四类插件，共 23 个：
 | Hook | 2 | 技能门控 + 会话启动时注入 plan-mode 规则 |
 | Validator | 2 | 文档同步验证、工作包验证 |
 
-> 插件依赖关系和开发指南请参阅 [docs/plugin-development.md](docs/design/plugin-development.md)
+> 插件依赖关系和开发指南请参阅 [docs/plugin-development.md](https://github.com/ph419/tackle/blob/main/docs/design/plugin-development.md)
 
 ## 构建后的项目结构
 
@@ -299,20 +299,20 @@ tackle-harness i
 
 ## 文档
 
-- [日常工作流最佳实践](docs/design/daily-workflow-guide.md) - 按场景的使用手册和 Skill 速查
-- [最佳实践](docs/design/best-practices.md) - 插件开发与项目最佳实践
-- [安装指南](docs/design/installation.md) - 详细的安装和配置说明
-- [配置参考](docs/design/config-reference.md) - 完整的配置文件说明
-- [插件开发](docs/design/plugin-development.md) - 插件架构和开发指南
-- [插件包约定](docs/design/plugin-package-convention.md) - 插件目录结构和命名规范
-- [迁移指南](docs/design/migration-guide.md) - 版本升级和迁移说明
-- [API 参考](docs/design/api-reference.md) - 运行时模块 API 文档
-- [工作流详解](docs/design/ai_workflow.md) - 完整的工作流数据流和阶段说明
+- [日常工作流最佳实践](https://github.com/ph419/tackle/blob/main/docs/design/daily-workflow-guide.md) - 按场景的使用手册和 Skill 速查
+- [最佳实践](https://github.com/ph419/tackle/blob/main/docs/design/best-practices.md) - 插件开发与项目最佳实践
+- [安装指南](https://github.com/ph419/tackle/blob/main/docs/design/installation.md) - 详细的安装和配置说明
+- [配置参考](https://github.com/ph419/tackle/blob/main/docs/design/config-reference.md) - 完整的配置文件说明
+- [插件开发](https://github.com/ph419/tackle/blob/main/docs/design/plugin-development.md) - 插件架构和开发指南
+- [插件包约定](https://github.com/ph419/tackle/blob/main/docs/design/plugin-package-convention.md) - 插件目录结构和命名规范
+- [迁移指南](https://github.com/ph419/tackle/blob/main/docs/design/migration-guide.md) - 版本升级和迁移说明
+- [API 参考](https://github.com/ph419/tackle/blob/main/docs/design/api-reference.md) - 运行时模块 API 文档
+- [工作流详解](https://github.com/ph419/tackle/blob/main/docs/design/ai_workflow.md) - 完整的工作流数据流和阶段说明
 
 ## 示例项目
 
-查看 [examples/](examples/) 目录获取完整的示例项目：
-- **[minimal](examples/minimal/)** — 最小示例项目，展示基本集成方式和配置
+查看 [examples/](https://github.com/ph419/tackle/tree/main/examples/) 目录获取完整的示例项目：
+- **[minimal](https://github.com/ph419/tackle/tree/main/examples/minimal/)** — 最小示例项目，展示基本集成方式和配置
 
 ## 持续集成
 
@@ -320,17 +320,17 @@ tackle-harness i
 - **CI 工作流** — 在 Ubuntu/Windows/macOS 三平台 × Node.js 18/20 上运行测试矩阵，并检查行覆盖率阈值
 - **发布工作流** — Tag 触发自动发布到 npm
 
-详见 [.github/workflows/](.github/workflows/)
+详见 [.github/workflows/](https://github.com/ph419/tackle/tree/main/.github/workflows/)
 
 ## 贡献
 
-欢迎贡献！我们接受 Bug 报告、功能建议、代码提交和文档改进。详见 [贡献指南](CONTRIBUTING.md)。
+欢迎贡献！我们接受 Bug 报告、功能建议、代码提交和文档改进。详见 [贡献指南](https://github.com/ph419/tackle/blob/main/CONTRIBUTING.md)。
 
 快速上手：Fork → 创建分支 → 修改 → 提交 PR。Commit 遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式。
 
 ## 许可证
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+MIT License - 详见 [LICENSE](https://github.com/ph419/tackle/blob/main/LICENSE) 文件
 
 ## 致谢
 

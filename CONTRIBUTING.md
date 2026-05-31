@@ -174,7 +174,7 @@ git push origin <branch-name>
 4. 在 `plugins/plugin-registry.json` 中注册新插件
 5. 如有外部依赖，在 `plugin.json` 的 `dependencies` 字段中声明
 
-详细的插件开发指南请参阅 [docs/plugin-development.md](docs/plugin-development.md)。
+详细的插件开发指南请参阅 [docs/plugin-development.md](https://github.com/ph419/tackle/blob/main/docs/design/plugin-development.md)。
 
 ---
 
@@ -348,9 +348,9 @@ npm run test:smoke
 
 如果你想为 Tackle Harness 开发新插件，请先阅读以下文档：
 
-- [插件开发指南](docs/plugin-development.md) — 完整的插件创建流程
-- [配置参考](docs/config-reference.md) — 配置文件格式说明
-- [日常工作流指南](docs/daily-workflow-guide.md) — 使用场景与 Skill 速查
+- [插件开发指南](https://github.com/ph419/tackle/blob/main/docs/design/plugin-development.md) — 完整的插件创建流程
+- [配置参考](https://github.com/ph419/tackle/blob/main/docs/design/config-reference.md) — 配置文件格式说明
+- [日常工作流指南](https://github.com/ph419/tackle/blob/main/docs/design/daily-workflow-guide.md) — 使用场景与 Skill 速查
 
 ### 快速开始：创建一个新 Skill 插件
 
@@ -396,6 +396,6 @@ npm run test:smoke
 如果你有任何问题，可以通过以下方式获取帮助：
 
 - 在 [GitHub Issues](https://github.com/ph419/tackle/issues) 中提问
-- 查阅 [文档目录](docs/) 中的相关文档
+- 查阅 [文档目录](https://github.com/ph419/tackle/tree/main/docs/design/) 中的相关文档
 
 再次感谢你的贡献！每一个 PR、每一个 Issue、每一行代码都让 Tackle Harness 变得更好。
