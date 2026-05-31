@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-05-31
+
+### Added
+
+- **CLI 模块化重构**：`bin/tackle.js`（~1800 行）拆分为 `bin/context.js` + `commands/` 13 个子命令模块（build、validate、init、migrate、interactive、status、config、list、install、setup-global、version、help、validate-config），职责清晰、可独立测试（WP-130~134）
+- **沙箱系统**：基于 Worker Threads 的插件沙箱执行环境，包含 `sandbox-manager`（生命周期管理、并发限制）、`sandbox-worker`（隔离执行）、`sandbox-context`（受限 API 暴露），支持超时清理和路径验证（WP-135~138）
+- **安全加固**：CI/CD 权限降级为 `contents: read` 最小特权；YAML 解析器增加 100KB 大小限制和 10 层深度限制；`.gitignore` 新增 `*.key`、`*.pem`、`*.secret`、`credentials*` 等安全规则（WP-140~143）
+- **SECURITY.md 安全策略文档**：漏洞报告流程、支持版本范围、安全更新策略
+- **JSON Schema 契约**：`config-schema.json`（配置校验）和 `plugin-schema.json`（插件清单校验），支持 Ajv 可选校验（WP-115）
+- **Capabilities 能力模型**：`plugins/contracts/capabilities.js` 统一插件能力声明和查询接口
+- **审计日志**：`audit-logger.js` 结构化事件记录，支持可插拔输出目标
+- **CLAUDE.md 注入器**：`claude-md-injector.js` 动态生成和注入 CLAUDE.md 项目指令
+- **YAML 解析器**：`yaml-parser.js` 独立 YAML 解析模块，内置安全限制
+- **插件校验器**：`plugin-validator.js` 全面的插件格式和契约校验
+- **路径解析器**：`resolve-plugin-path.js` 统一插件路径解析，支持全局和本地模式
+- **设置合并器**：`settings-merger.js` 多级配置（全局/项目/本地）合并策略
+- **构建 CLI 提取**：`build-cli.js` 从 `harness-build.js` 中提取 CLI 相关代码，职责分离
+- **E2E 测试套件**：`test/e2e/test-init-build-validate.js` 完整的 init → build → validate 端到端验证
+- 14+ 新增测试文件，750+ 测试用例
+
+### Changed
+
+- **统一 Logger**：所有运行时模块统一使用 `logger.js`，移除 `console` 直接调用
+- **harness-build.js 大幅精简**：从 ~1200 行重构至 ~250 行，CLI/校验/构建逻辑分离到独立模块
+- **config-validator.js 重构**：JSON Schema 驱动校验，代码量从 ~200 行降至 ~50 行
+- **manifest-resolver.js 增强**：插件路径解析和清单合并逻辑扩展
+- **plugin-loader.js 增强**：能力检查和沙箱集成
+- Watchdog 插件版本号升级至 1.0.0
+- skill-role-manager 依赖格式统一为 `provider:role-registry`
+- Plugin 接口更新，增加能力声明支持
+- `.npmignore` 扩展，排除测试和开发文件
+- 文档归档：6 个旧版 `docs/` 技术文档移除（内容已合并到 README 和 CLAUDE.md）
+
+### Verified
+
+- 750+ 测试全通过（runtime、integration、e2e），0 失败
+- 23 plugins 构建成功，validate 0 errors
+- `npm pack` 无敏感文件泄露
+
 ## [0.1.2] - 2026-05-25
 
 ### Fixed
@@ -265,6 +304,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.2.0]: https://github.com/ph419/tackle/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/ph419/tackle/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ph419/tackle/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ph419/tackle/compare/v0.0.24...v0.1.0
