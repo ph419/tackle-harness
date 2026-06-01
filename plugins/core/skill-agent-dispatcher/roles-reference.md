@@ -202,6 +202,12 @@ SendMessage(
 
 发送响应后，你的工作结束，可以退出。
 
+**⚠️ SendMessage 使用注意**:
+如果需要向 Lead 发送消息（非 shutdown_response），必须遵守：
+- 使用 object 类型 message：`message={"type": "status_update", ...}`
+- 如果使用 string message：必须提供 `summary` 参数
+- 禁止发送 string message 但不提供 summary
+
 **⚠️ 禁止事项**:
 - 不要认领或执行其他任务（可以查看 TaskList 了解进度，但不可对其他任务执行 TaskUpdate）
 - 不要在完成后继续工作

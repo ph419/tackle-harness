@@ -64,7 +64,8 @@ TeamDelete 必须执行，且必须验证结果！
 ```
 # 检查映射表中是否还有残留 Teamee
 if teamee_map is not empty:
-    print(f"⚠️ 发现 {len(teamee_map)} 个未销毁的 Teamee，发送 shutdown_request")
+    # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+    # 输出: "⚠️ 发现 {len(teamee_map)} 个未销毁的 Teamee，发送 shutdown_request"
     for task_id, teamee_name in teamee_map.items():
         SendMessage(to=teamee_name, message={
             "type": "shutdown_request",
@@ -72,7 +73,8 @@ if teamee_map is not empty:
             "request_id": f"final-shutdown-{task_id}-{timestamp()}"
         })
 else:
-    print("所有 Teamee 已在监控循环中即时销毁，无需额外 shutdown")
+    # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+    # 输出: "所有 Teamee 已在监控循环中即时销毁，无需额外 shutdown"
 
 # 额外安全网: 读取团队配置检查是否有遗漏的成员
 # (防止映射表不一致的情况)

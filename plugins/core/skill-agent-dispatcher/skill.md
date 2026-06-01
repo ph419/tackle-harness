@@ -59,6 +59,38 @@
 
 ---
 
+## SendMessage 使用规范 (🔴 必须遵守)
+
+**所有 SendMessage 调用必须遵循以下规则：**
+
+1. **优先使用 object 类型的 message**（结构化 JSON）：
+   ```
+   SendMessage(to=target, message={
+       "type": "shutdown_request",
+       "request_id": "...",
+       "reason": "..."
+   })
+   ```
+
+2. **如果必须使用 string message，必须同时提供 summary 参数**：
+   ```
+   SendMessage(
+       to=target,
+       message="Task #1 已完成",
+       summary="Task 1 completed"
+   )
+   ```
+
+3. **🔴 禁止**：发送 string message 但不提供 summary
+   ```
+   # ❌ 这会导致错误：Error: summary is required when message is a string
+   SendMessage(to=target, message="Task #1 已完成")
+   ```
+
+**推荐做法**：在 agent-dispatcher 的监控循环中，SendMessage 仅用于发送 `shutdown_request`（object 类型），所有状态报告直接输出文本。
+
+---
+
 ## Flow
 
 ```dot
@@ -256,10 +288,12 @@ for task in tasks:
 all_tasks_verify = TaskList()
 unblocked_verify = [t for t in all_tasks_verify if t.status == "pending" and is_unblocked(t)]
 if len(teamee_map) != len(unblocked_verify):
-    print(f"⚠️ 验证失败: 有 {len(unblocked_verify)} 个已解除阻塞的 WP 但只创建了 {len(teamee_map)} 个 Teamee")
-    print("❌ 这可能意味着某些 WP 被错误合并。请检查以上步骤是否严格遵循 1:1 映射规则。")
+    # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+    # 输出: "⚠️ 验证失败: 有 {len(unblocked_verify)} 个已解除阻塞的 WP 但只创建了 {len(teamee_map)} 个 Teamee"
+    # 输出: "❌ 这可能意味着某些 WP 被错误合并。请检查以上步骤是否严格遵循 1:1 映射规则。"
 else:
-    print(f"✅ 1:1 映射验证通过: {len(teamee_map)} 个 Teamee 对应 {len(unblocked_verify)} 个已解除阻塞的 WP")
+    # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+    # 输出: "✅ 1:1 映射验证通过: {len(teamee_map)} 个 Teamee 对应 {len(unblocked_verify)} 个已解除阻塞的 WP"
 ```
 
 **为什么不能用 Explore agent**:
@@ -280,6 +314,13 @@ Lead Agent 必须进入监控循环，不可跳过！
 
 ```
 # Lead Agent 监控循环
+
+# ⚠️ 监控循环 SendMessage 规则 (🔴 必须遵守):
+# 1. SendMessage 仅用于发送 shutdown_request（必须是 object 类型）
+# 2. 所有状态报告直接输出文本（用文本输出工具），禁止通过 SendMessage 发送
+# 3. 禁止使用 SendMessage 发送 string 类型的 message
+# 违反这些规则会导致 "summary is required when message is a string" 错误
+
 loop_interval = 30  # 秒
 max_wait_time = 7200  # 2 小时
 shutdown_timeout = 15  # 等待 Teamee shutdown 响应的超时
@@ -292,7 +333,8 @@ if file_exists(state_file):
     try:
         existing_state = json_loads(Read(file_path=state_file))
     except Exception as e:
-        print(f"⚠️ 状态文件解析失败，使用默认初始状态: {e}")
+        # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+        # 输出: "⚠️ 状态文件解析失败，使用默认初始状态: {e}"
         existing_state = {}
     if existing_state.get("status") == "monitoring":
         # 从文件恢复状态（上下文压缩后重新进入时走此分支）
@@ -305,7 +347,8 @@ if file_exists(state_file):
         max_batch_size = existing_state.get("max_batch_size", 5)
         current_batch = existing_state.get("current_batch", [])
         pending_batches = existing_state.get("pending_batches", [])
-        print(f"从状态文件恢复: {len(teamee_map)} 个活跃 Teamee, 迭代 {loop_iteration}")
+        # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+        # 输出: "从状态文件恢复: {len(teamee_map)} 个活跃 Teamee, 迭代 {loop_iteration}"
     else:
         # 状态文件存在但已完成，正常初始化
         pass
@@ -344,7 +387,8 @@ while (now() - start_time) < max_wait_time:
         try:
             state = json_loads(Read(file_path=state_file))
         except Exception as e:
-            print(f"⚠️ 状态文件解析失败，使用当前内存状态继续: {e}")
+            # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+            # 输出: "⚠️ 状态文件解析失败，使用当前内存状态继续: {e}"
             state = {}
         team_name = state.get("team_name", team_name)
         teamee_map = state.get("teamee_map", teamee_map)
@@ -380,7 +424,8 @@ while (now() - start_time) < max_wait_time:
     for task in tasks:
         if task.status == "completed" and task.id in teamee_map:
             teamee_name = teamee_map[task.id]
-            print(f"任务 {task.id} 已完成，即时销毁 Teamee: {teamee_name}")
+            # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+            # 输出: "任务 {task.id} 已完成，即时销毁 Teamee: {teamee_name}"
 
             # B1. 发送 shutdown_request
             SendMessage(to=teamee_name, message={
@@ -391,7 +436,8 @@ while (now() - start_time) < max_wait_time:
 
             # B3. 从映射表移除
             del teamee_map[task.id]
-            print(f"Teamee {teamee_name} 已销毁并从映射表移除")
+            # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+            # 输出: "Teamee {teamee_name} 已销毁并从映射表移除"
 
             # B4. 更新任务状态文件 (DISP-002)
             # Teamee 完成后更新对应的 task-{id}.json 文件
@@ -431,13 +477,15 @@ while (now() - start_time) < max_wait_time:
         overflow = unblocked_candidates[max_batch_size:]
         if overflow:
             pending_batches.extend([t.id for t in overflow])
-            print(f"批量控制: 当前批次 {len(current_batch)} 个任务, 待处理批次 {len(pending_batches)} 个任务")
+            # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+            # 输出: "批量控制: 当前批次 {len(current_batch)} 个任务, 待处理批次 {len(pending_batches)} 个任务"
 
     for task in tasks:
         if task.status == "pending" and task.owner == "" and is_unblocked(task):
             # C0.1 并发检查：活跃 Teamee 数已达上限，跳过创建
             if active_count >= max_concurrent:
-                log(f"并发上限 {max_concurrent} 已达，任务 {task.id} 保持 pending")
+                # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+                # 输出: "并发上限 {max_concurrent} 已达，任务 {task.id} 保持 pending"
                 continue
 
             # C0.3 批量控制：只处理当前批次内的任务
@@ -472,7 +520,8 @@ while (now() - start_time) < max_wait_time:
             # C5. 记录映射关系
             teamee_map[task.id] = teamee_name
             active_count += 1
-            print(f"为任务 {task.id} 创建专用 Teamee: {teamee_name}")
+            # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+            # 输出: "为任务 {task.id} 创建专用 Teamee: {teamee_name}"
 
             # C6. 创建任务状态文件 (DISP-002)
             # Teamee 创建后初始化对应的 task-{id}.json 文件
@@ -508,7 +557,8 @@ while (now() - start_time) < max_wait_time:
         try:
             actions = json_loads(actions_data).get("actions", [])
         except Exception as e:
-            print(f"⚠️ 守护进程指令文件解析失败，跳过本轮指令: {e}")
+            # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+            # 输出: "⚠️ 守护进程指令文件解析失败，跳过本轮指令: {e}"
             actions = []
 
         for action in actions:
@@ -600,7 +650,8 @@ while (now() - start_time) < max_wait_time:
                         "request_id": f"daemon-abort-all-{task_id}-{timestamp()}"
                     })
                 teamee_map.clear()
-                print("收到 abort_all 指令，终止监控循环")
+                # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+                # 输出: "收到 abort_all 指令，终止监控循环"
                 processed_action_ids.append(action.get("id"))
                 break  # 跳出监控循环
 
@@ -649,14 +700,16 @@ while (now() - start_time) < max_wait_time:
             "current_batch": current_batch,
             "pending_batches": pending_batches
         }))
-        print("所有任务完成，退出监控循环")
+        # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+        # 输出: "所有任务完成，退出监控循环"
         break
 
     # Phase D2: 异常检测
     in_progress = count(status == "in_progress")
     pending = count(status == "pending")
     if pending > 0 and in_progress == 0 and len(teamee_map) == 0:
-        print("异常: 有待处理任务但无活跃 Teamee 且无映射")
+        # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+        # 输出: "异常: 有待处理任务但无活跃 Teamee 且无映射"
         break
 
     # Phase D3: 批次自动加载 — 当前批次全部完成后从 pending_batches 加载下一批
@@ -669,7 +722,8 @@ while (now() - start_time) < max_wait_time:
             next_batch_size = min(max_batch_size, len(pending_batches))
             current_batch = pending_batches[:next_batch_size]
             pending_batches = pending_batches[next_batch_size:]
-            print(f"当前批次完成，自动加载下一批: {len(current_batch)} 个任务, 剩余 {len(pending_batches)} 个")
+            # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+            # 输出: "当前批次完成，自动加载下一批: {len(current_batch)} 个任务, 剩余 {len(pending_batches)} 个"
             # 写回状态文件保存批次进度
             Write(file_path=state_file, content=json_dumps({
                 "team_name": team_name,
@@ -693,7 +747,8 @@ if (now() - start_time) >= max_wait_time:
     # 写入最终心跳 (DISP-001): 状态为 shutting_down
     heartbeat_data["status"] = "shutting_down"
     Write(file_path=".claude-daemon/heartbeat.json", content=json_dumps(heartbeat_data))
-    print("监控超时，强制执行清理")
+    # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+    # 输出: "监控超时，强制执行清理"
     for task_id, teamee_name in teamee_map.items():
         SendMessage(to=teamee_name, message={
             "type": "shutdown_request",
@@ -847,7 +902,8 @@ def update_task_file(task_id, status=None, increment_retry=False, append_marker=
     try:
         task_data = json_loads(existing_data)
     except Exception as e:
-        print(f"⚠️ 任务状态文件解析失败，跳过更新: {e}")
+        # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+        # 输出: "⚠️ 任务状态文件解析失败，跳过更新: {e}"
         return
 
     # 更新状态
@@ -942,10 +998,10 @@ Read("plugins/core/skill-agent-dispatcher/roles-reference.md")
 
 ### 主动共享 (通过 SendMessage)
 
-| 消息类型 | 用途 |
-|----------|------|
-| `message` | Lead ↔ Teamee 点对点通信 |
-| `shutdown_request` | Lead 请求 Teamee 关闭 |
+| 消息类型 | 格式 | 用途 |
+|----------|------|------|
+| `shutdown_request` | object (必须) | Lead 请求 Teamee 关闭 |
+| `shutdown_response` | object (必须) | Teamee 确认收到 shutdown |
 
 ---
 
