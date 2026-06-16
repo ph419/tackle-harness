@@ -102,6 +102,62 @@ digraph checklist {
 
 ### 建议后续操作
 1. ...
+
+<!-- 以下为机器可读判定，供 reflection-evaluator 消费，请勿手改 -->
+```json:machine-readable
+{
+  "wpId": "WP-XXX",
+  "checkedAt": "2026-06-12T14:40:00Z",
+  "passed": false,
+  "summary": { "total": 20, "passed": 18, "failed": 2 },
+  "categories": [
+    {
+      "name": "代码质量",
+      "passed": true,
+      "items": [
+        { "id": "code-1", "text": "代码符合规范", "passed": true },
+        { "id": "code-2", "text": "无编译错误", "passed": true }
+      ]
+    },
+    {
+      "name": "测试检查",
+      "passed": false,
+      "items": [
+        { "id": "test-3", "text": "边界情况已覆盖", "passed": false, "reason": "缺少边界 X" }
+      ]
+    }
+  ],
+  "failedItems": [
+    { "category": "测试检查", "id": "test-3", "reason": "缺少边界 X" }
+  ]
+}
+```
+```
+
+### Machine-Readable Verdict（机器可读判定契约）
+
+Report 末尾的 `json:machine-readable` fenced block 是供 **reflection-evaluator**（Agentic Loop Reflect 层）程序化消费的结构化判定，与上方人类可读 Markdown 表格**并存**（追加式，不破坏表格输出）。
+
+字段规范（详见 `docs/reports/agentic-loop-design.md` §5.4）：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `wpId` | string | 受检工作包 ID |
+| `checkedAt` | string | ISO 8601 检查时间 |
+| `passed` | boolean | 全部通过才 `true`（与表格"状态"一致） |
+| `summary` | object | `{ total, passed, failed }` 总数统计 |
+| `categories[].name` | string | 与 5 类对齐（代码质量/测试/文档/Git/经验） |
+| `categories[].passed` | boolean | 该类全过才 `true` |
+| `categories[].items[].id` | string | **稳定 ID**（见下方规则） |
+| `categories[].items[].reason` | string? | 失败原因（仅 failed 项必填） |
+| `failedItems` | array | 扁平失败项列表，reflection-evaluator 的 `failingDrivers` 直接映射 |
+
+**🔴 `item.id` 跨轮稳定性规则（发散检测前提）**：
+
+- 格式 = 类别前缀 + 序号：`code-N` / `test-N` / `doc-N` / `git-N` / `exp-N`（对应 5 类检查）
+- 同一检查项跨多轮 Report **必须用同一个 id**（如"边界情况已覆盖"恒为 `test-3`）
+- **禁止**使用行号、时间戳、随机串或每次重新编号——否则 Agentic Loop 的发散检测（"同一失败项反复失败"）无法跨轮比对
+- 类别内序号一经分配不再变更；新增检查项追加新序号，不重排已有项
 ```
 
 ## Important

@@ -1,0 +1,15 @@
+{
+  "name": "skill-tackle-plan",
+  "version": "1.0.0",
+  "type": "skill",
+  "description": "目标驱动计划生成器 - 把自然语言需求/目标分解为符合 plan-reader 契约的结构化计划，输出到 docs/plan/，供 skill-agentic-loop 读取拆 WP 自闭环执行。仅生成计划，不执行、不拆 WP 文档。",
+  "triggers": ["生成计划", "制定计划", "写计划", "规划方案", "tackle-plan", "generate plan", "make plan", "目标分解"],
+  "dependencies": ["provider:state-store"],
+  "provides": ["skill:tackle-plan"],
+  "metadata": {
+    "gatedByCode": true
+  },
+  "config": {
+    "plan_mode_required": true
+  }
+}

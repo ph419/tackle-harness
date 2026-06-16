@@ -113,6 +113,7 @@ var commandModules = {
   'version': 'version.js',
   'help': 'help.js',
   'install': 'install.js',
+  'team-cleanup': 'team-cleanup.js',
 };
 
 function loadCommand(cmdName) {

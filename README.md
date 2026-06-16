@@ -3,7 +3,7 @@
 > 基于插件的 AI Agent 工作流框架，为 Claude Code 提供任务管理、工作流编排、角色管理等能力
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.2.7-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.3.4-blue.svg)](https://github.com/ph419/tackle)
 
 **[English](https://github.com/ph419/tackle/blob/main/README.en.md)**
 
@@ -105,6 +105,7 @@ tackle-harness build
 | `tackle-harness status` | 显示构建状态和插件统计信息 |
 | `tackle-harness config` | 显示/验证当前配置 |
 | `tackle-harness list` | 列出所有已注册的插件 |
+| `tackle-harness team-cleanup <name>` | 确定性清理残留的 Agent Teams 团队目录（WP-179） |
 | `tackle-harness version` | 显示版本信息 |
 | `tackle-harness --root <path>` | 指定目标项目路径（默认为当前目录） |
 
@@ -129,6 +130,8 @@ tackle-harness build
 | tackle-sync | "配置tackle" / "sync" / "初始化" | 自动检测项目状态，执行初始化/更新/迁移 |
 | agent-dispatcher | "批量执行" / "dispatch agents" | 调度多个子代理并行工作 |
 | workflow-orchestrator | "开始工作流" / "start workflow" | 编排完整工作流 |
+| agentic-loop | "自主循环" / "agentic loop" | Observe→Think→Act→Reflect→Decide 自主闭环执行（v0.3+） |
+| tackle-plan | "生成计划" / "make plan" | 目标驱动计划生成，输出供 agentic-loop 读取（v0.3+） |
 
 ## 工作流概览
 
@@ -148,14 +151,23 @@ tackle-harness build
 
 > 完整的数据流图和阶段细节请参阅 [docs/ai_workflow.md](docs/design/ai_workflow.md)
 
+### Agentic Loop（自主闭环，v0.3+）
+
+P1 审核通过后，可由 `skill-agentic-loop` 接管 P2↔P3 进入**自主闭环**，无需每轮人工介入。决策状态机 `provider-loop-engine` 按 `Observe(环境感知) → Think(决策) → Act(执行) → Reflect(评分+发散检测) → Decide(继续/达成/发散/熔断/触顶)` 循环推进：
+
+- 状态持久化到 state-store，防上下文压缩、支持断点恢复
+- 失败项驱动 `retry`（携带 failingDrivers refine 反馈）/ `resplit` / `dispatch`，含「部分改进不计入发散」的发散宽容
+- 三重上限保护：`max_iterations`、`max_round_time_ms`、`max_wall_time_ms`，均可配置
+- 触顶 / 发散 / 熔断时由 `loop-report` 出总结报告，保留 `applyDirective` 人介入通道
+
 ## 插件架构
 
-Tackle Harness 包含四类插件，共 23 个：
+Tackle Harness 包含四类插件，共 26 个：
 
 | 类型 | 数量 | 作用 |
 |------|------|------|
-| Skill | 15 | 可执行技能，Claude Code 直接调用 |
-| Provider | 4 | 状态存储、角色注册、记忆存储、守护进程 |
+| Skill | 17 | 可执行技能，Claude Code 直接调用 |
+| Provider | 5 | 状态存储、loop 决策引擎、角色注册、记忆存储、守护进程 |
 | Hook | 2 | 技能门控 + 会话启动时注入 plan-mode 规则 |
 | Validator | 2 | 文档同步验证、工作包验证 |
 
@@ -184,7 +196,7 @@ your-project/
 ```
 your-project/
   .claude/
-    skills/                          # 15 个技能
+    skills/                          # 17 个技能
       skill-task-creator/skill.md
       ...
     hooks/                           # 2 个 hook

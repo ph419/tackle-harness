@@ -38,8 +38,11 @@ module.exports = {
           cleanupActions.push('Removed project-level hooks');
         }
       } catch (err) {
-        console.error('[tackle-harness] Warning: Failed to clean up project-level hooks');
-        console.error('[tackle-harness] Error: ' + err.message);
+        // Expected degradation: user's settings.json may be malformed/unreadable.
+        // Hook cleanup is optional (best-effort); do not surface as Error-level noise.
+        if (ctx.flags.verbose) {
+          console.warn('[tackle-harness] (degraded) Skipped project-level hooks cleanup: ' + err.message);
+        }
       }
     }
 
@@ -60,8 +63,10 @@ module.exports = {
           }
         }
       } catch (err) {
-        console.error('[tackle-harness] Warning: Failed to clean up project-level skills');
-        console.error('[tackle-harness] Error: ' + err.message);
+        // Expected degradation: legacy skills cleanup is best-effort and optional.
+        if (ctx.flags.verbose) {
+          console.warn('[tackle-harness] (degraded) Skipped project-level skills cleanup: ' + err.message);
+        }
       }
     }
 
@@ -82,8 +87,10 @@ module.exports = {
           }
         }
       } catch (err) {
-        console.error('[tackle-harness] Warning: Failed to clean up project-level hooks');
-        console.error('[tackle-harness] Error: ' + err.message);
+        // Expected degradation: legacy hooks dir cleanup is best-effort and optional.
+        if (ctx.flags.verbose) {
+          console.warn('[tackle-harness] (degraded) Skipped project-level hooks dir cleanup: ' + err.message);
+        }
       }
     }
 

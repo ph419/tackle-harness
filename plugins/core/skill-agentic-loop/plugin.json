@@ -1,0 +1,20 @@
+{
+  "name": "skill-agentic-loop",
+  "version": "1.1.0",
+  "type": "skill",
+  "description": "Use when user says \"自主循环\", \"agentic loop\", \"目标驱动执行\", or needs a goal-driven P2↔P3 self-closing loop that retries failed checklist items autonomously until achieved/diverged/timeout, then returns to P1 human-checkpoint or proceeds to P4. Loop is decision layer; Act is delegated to agent-dispatcher via Agent Teams (subagents) — loop never writes code itself.",
+  "triggers": ["自主循环", "agentic loop", "目标驱动", "自闭环", "自动重试", "P2P3 loop", "skill-agentic-loop"],
+  "dependencies": ["provider:loop-engine", "provider:state-store", "provider:watchdog"],
+  "provides": ["skill:agentic-loop"],
+  "metadata": {
+    "gatedByCode": true
+  },
+  "config": {
+    "plan_mode_required": true,
+    "max_iterations": 6,
+    "max_round_time_ms": 600000,
+    "max_wall_time_ms": 3600000,
+    "divergence_threshold": 3,
+    "proximity_goal": 0.9
+  }
+}

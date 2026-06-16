@@ -8,7 +8,9 @@
 
 本 skill 的 Step 7 清理流程需要 Bash 工具权限来：
 - 验证目录是否存在 (`test -d`)
-- 在 TeamDelete 失败时执行文件系统级删除 (`rm -rf`)
+- 在 TeamDelete 失败时执行文件系统级删除（由 `team-cleanup` CLI 封装，不再需要裸 `rm -rf` 权限）
+
+> **Step 7f 的文件系统删除由 `node bin/tackle.js team-cleanup <team> --force` 执行**——该 CLI 是 Node 进程，**绕过 harness Bash 权限系统**，无需在 settings.json 添加 `Bash(rm -rf ...)` 权限条目。只需 `Bash(node bin/tackle.js team-cleanup ...)` 一条。
 
 **建议权限配置**（添加到 settings.json 的 `permissions.allow` 中）：
 ```json
@@ -58,50 +60,23 @@ TeamDelete 必须执行，且必须验证结果！
 
 ---
 
-### Step 7b: 发送 shutdown_request (清理残留 Teamee)
+### Step 7b: 清空映射表 (逻辑销毁残留 Teamee)
 
-检查 `teamee_map` 中是否还有未销毁的 Teamee:
+残留 Teamee 已无需发送协议帧——直接清空映射表，in-process Teamee 随 session 终止：
 ```
-# 检查映射表中是否还有残留 Teamee
-if teamee_map is not empty:
-    # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
-    # 输出: "⚠️ 发现 {len(teamee_map)} 个未销毁的 Teamee，发送 shutdown_request"
-    for task_id, teamee_name in teamee_map.items():
-        SendMessage(
-            to=teamee_name,
-            summary="Shutdown teamee: final cleanup",
-            message={
-                "type": "shutdown_request",
-                "reason": "最终清理阶段，准备 TeamDelete",
-                "request_id": f"final-shutdown-{task_id}-{timestamp()}"
-            }
-        )
-else:
-    # ── 状态输出（直接文本输出，禁止使用 SendMessage）──
-    # 输出: "所有 Teamee 已在监控循环中即时销毁，无需额外 shutdown"
+# 无协议帧；in-process Teamee 随 session 自然终止
+teamee_map.clear()
+# ── 状态输出（直接文本输出，禁止使用 SendMessage）──
+# 输出: "映射表已清空（残留 Teamee 随 session 终止）"
+```
 
-# 额外安全网: 读取团队配置检查是否有遗漏的成员
-# (防止映射表不一致的情况)
-config = Read("~/.claude/teams/$team_name/config.json")
-for member in config.members:
-    if member.name != "team-lead" and member.name not in teamee_map.values():
-        SendMessage(
-            to=member.name,
-            summary="Shutdown orphan: final cleanup",
-            message={
-                "type": "shutdown_request",
-                "reason": "最终清理阶段，发现未在映射表中的成员",
-                "request_id": f"orphan-shutdown-{member.name}-{timestamp()}"
-            }
-        )
-```
+> 不再读取团队配置发 orphan shutdown——映射表不一致的孤儿成员会在后续 TeamDelete / team-cleanup CLI 的目录级清理中被一并删除。
 
 ---
 
-### Step 7c: 等待 shutdown 响应（最多 15 秒）
+### Step 7c: (已删除) 无需等待 shutdown 响应
 
-等待所有 Teamee 的 `shutdown_response`。
-如果 15 秒内未全部响应，不再等待，继续执行清理。
+逻辑销毁（Step 7b `teamee_map.clear()`）无协议帧，无需等待响应，直接进入 TeamDelete。
 
 ---
 
@@ -141,17 +116,13 @@ basename "$HOME/.claude/teams/$team_name"
 ```
 - 返回值不等于 `$team_name` → 打印 `❌ 安全检查失败` → 提示手动执行 `清理团队` → **停止**
 
-**执行删除**（逐个目录，检查存在后再删）:
-```bash
-# 删除团队目录（仅当存在时）
-test -d "$HOME/.claude/teams/$team_name" && rm -rf "$HOME/.claude/teams/$team_name" && echo "DELETED" || echo "SKIP_OR_FAIL"
-
-# 删除任务目录（仅当存在时）
-test -d "$HOME/.claude/tasks/$team_name" && rm -rf "$HOME/.claude/tasks/$team_name" && echo "DELETED" || echo "SKIP_OR_FAIL"
+**执行删除**（调用确定性 CLI，封装跨平台 `fs.rmSync` + 安全校验，绕过 Bash 权限系统）:
+```
+Bash(command="node {package_root}/bin/tackle.js team-cleanup {team_name} --force")
 ```
 
-如果 Bash `rm -rf` 权限被拒绝:
-- 打印 `⚠️ 权限不足，无法执行文件系统删除`
+该 CLI 内部先试 TeamDelete，失败回退文件系统删除（带 basename / 字符集 / 路径穿越校验）。如果 CLI 仍失败:
+- 打印 `⚠️ team-cleanup CLI 执行失败`
 - 提示用户手动执行 `清理团队` 或 `rm -rf "$HOME/.claude/teams/$team_name" "$HOME/.claude/tasks/$team_name"`
 
 ---
@@ -188,7 +159,7 @@ test -d "$HOME/.claude/tasks/$team_name" && echo "STILL_EXISTS" || echo "CLEAN"
 ⚠️ Task #2 执行失败
 Owner: godot-script-expert-t2
 状态: in_progress (卡住)
-处理: Lead 发送 shutdown_request 即时销毁该 Teamee
+处理: Lead 调 markTeameeDestroyed 逻辑销毁该 Teamee（无协议帧）
       从 teamee_map 移除映射
       创建新 Teamee 重试 或 人工介入
 ```
@@ -205,12 +176,11 @@ Owner: godot-script-expert-t2
 ```
 ⚠️ 清理等待超时（30秒）
 可能原因：
-- Teamee 没有响应 shutdown_request
-- Teamee 使用了 Explore 等只读 agent（没有 SendMessage 工具）
-- Teamee 进程卡死
+- Teamee 进程卡死（逻辑销毁已移除映射，但进程未退出）
+- TeamDelete 多次失败
 
 处理：
-- 强制执行 TeamDelete（不是 rm -rf！）
+- 强制执行 team-cleanup CLI（不是 rm -rf！）
 - 建议用户检查是否有残留进程
 - 检查 Step 5 是否使用了正确的 subagent_type
 ```

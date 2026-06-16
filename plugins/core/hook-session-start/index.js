@@ -276,3 +276,6 @@ class SessionStartHook {
 }
 
 module.exports = SessionStartHook;
+
+// Exposed for unit testing (plan_mode_required detection contract, WP-176).
+module.exports.findPlanModeSkills = findPlanModeSkills;

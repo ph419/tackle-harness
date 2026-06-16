@@ -1,0 +1,15 @@
+{
+  "name": "provider-loop-engine",
+  "version": "1.0.0",
+  "type": "provider",
+  "description": "Agentic Loop 决策状态机 Provider - Observe/Think/Act/Reflect/Decide 循环核心，复用 state-store 持久化",
+  "dependencies": ["provider:state-store", "provider:watchdog"],
+  "provides": ["provider:loop-engine"],
+  "config": {
+    "max_iterations": 6,
+    "max_round_time_ms": 600000,
+    "max_wall_time_ms": 3600000,
+    "divergence_threshold": 3,
+    "proximity_goal": 0.9
+  }
+}

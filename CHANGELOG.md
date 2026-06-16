@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-06-16
+
+### Added
+
+- **`skill-tackle-plan` 目标驱动计划生成器 v1.0.0**（WP-178）：将自然语言需求分解为符合 plan-reader 契约的结构化计划，输出到 `docs/plan/`，对接 `skill-agentic-loop`，打通「需求 → 计划 → 自闭环」链路
+- **`team-cleanup` CLI + `markTeameeDestroyed` 逻辑销毁**（WP-179）：根因消除 agent-dispatcher 批量执行反复弹出 SendMessage 协议帧拦截错误（WP-163/164/166 三次治标未除）——彻底放弃用 SendMessage 发 `shutdown_request`，改为从映射表移除的逻辑销毁 + 批末 `tackle-harness team-cleanup` 确定性清理团队目录；插件总数 25 → 26
+- ralph-loop vs Tackle Harness 差异分析报告（WP-181，`docs/reports/`，仅调研文档不写代码）
+
+## [0.3.3] - 2026-06-13
+
+### Changed
+
+- **`skill-agentic-loop` 深度改造**（1.0.0 → 1.1.0，WP-177）：新增读 `.claude/plan.md` 入口拆 WP；删除「单 WP 无失败预期即退化」规则、强制走 Agent Teams 子代理；`loop-actuator` 注入打通 `engine.step()` 端到端（移除占位 placeholder）；三重迭代上限可配置（`max_iterations` 默认 6、`max_round_time_ms`、`max_wall_time_ms`，均可 init override）；触顶/发散/熔断直接由 `loop-report` 出报告、不再回退 P1（保留 `applyDirective` 人介入通道）
+- 新增 runtime 模块 `plan-reader`、`loop-actuator`、`loop-report`
+
+### Verified
+
+- npm test 1306/1306 全绿，覆盖率 Line 84.10%，build/validate 25 plugins 0 错误 0 警告
+
+## [0.3.2] - 2026-06-13
+
+### Fixed
+
+- **打通 Agentic Loop retry 反馈链路**（WP-176）：修复 v0.3.0 三处断裂——① `loop-snapshot.buildWorkPackages` 的 `failed:[]` 写死导致 engine retry 分支永不命中，改为从 `checklist.failedItems` 聚合 wpId 填充；② `reflection-evaluator` 已算出 `failingDrivers` 但未回填 state、未进 dispatcher restart 注入重做 Teamee prompt，refine 通道端到端贯通（产出 → 回填 → Think 携带 → Step 4.2 → dispatcher 注入）；③ 发散判定含相等计数 + 阈值 3 致无效 retry 过快发散，新增「部分改进（失败项减少）不计入 divergenceStreak」发散宽容
+
+### Verified
+
+- npm test 1216/1216 全绿，覆盖率 82.96%，build/validate 25 plugins 0 错误 0 警告
+
+## [0.3.1] - 2026-06-12
+
+### Fixed
+
+- 测试输出噪音清理：`loop-snapshot` 捕获 git 子进程 stderr，不再泄露 `fatal: ambiguous argument 'HEAD'`；`init`/`migrate` 预期降级路径由 `console.error` 改为 verbose-only warn，消除 `[tackle-harness] Error:` 误报；e2e plugin count 断言改为动态读 `plugin-registry.json`（不再硬编码 23）
+
+### Added
+
+- Agentic Loop 纯使用指南（`docs/reports/`，自包含深色主题 HTML）
+
+### Verified
+
+- npm test 1163/1163 全绿 0 噪音，覆盖率 82.51%，build/validate 25 plugins 0 错误 0 警告
+
+## [0.3.0] - 2026-06-12
+
+### Added
+
+- **Agentic Loop 自主闭环**（WP-174）：新增决策状态机 `provider-loop-engine`（Observe → Think → Act → Reflect → Decide 五阶段，三类终止判定优先级 熔断 > 发散 > 上限 > 达成 > 继续，state-store 持久化防上下文压缩）、`loop-snapshot`（state-store / progress-tracker / watchdog / git-diff 四源环境感知聚合）、`reflection-evaluator`（proximity 评分 + 发散检测 + refine 建议）、`loop-coordinator`（多 loop 全局状态聚合）
+- 新增 `skill-agentic-loop` 入口技能，五层映射现有 skill（P1=human-checkpoint / Observe=snapshot / Think=engine.think / Act=agent-dispatcher+checklist / Reflect=evaluator / Decide=engine._decide+watchdog）
+- `skill-checklist` 输出 `json:machine-readable` CheckResult block 供机器消费（向后兼容现有 Markdown 表格，item.id 跨轮稳定）
+- 130 个新增单元测试 + 端到端 P2↔P3 自主重试至达成 / 发散终止 / 熔断 / 触顶 / 状态持久化恢复场景验证
+
+### Verified
+
+- npm test 1154/1154 全绿，build/validate 25 plugins 0 错误 0 警告
+
 ## [0.2.7] - 2026-06-10
 
 ### Added
@@ -369,6 +425,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.3.4]: https://github.com/ph419/tackle/compare/v0.3.3...v0.3.4
+[0.3.3]: https://github.com/ph419/tackle/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/ph419/tackle/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/ph419/tackle/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/ph419/tackle/compare/v0.2.7...v0.3.0
 [0.2.7]: https://github.com/ph419/tackle/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/ph419/tackle/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ph419/tackle/compare/v0.2.4...v0.2.5

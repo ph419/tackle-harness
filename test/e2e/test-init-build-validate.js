@@ -143,10 +143,15 @@ describe('E2E: init -> build -> validate standard workflow', () => {
       'validate passes'
     );
 
-    // Should report checking all 23 plugins
+    // Should report checking all enabled plugins registered in the registry.
+    // Dynamic count (not hardcoded) so newly registered plugins don't break it.
+    var registry = JSON.parse(
+      fs.readFileSync(path.join(PACKAGE_ROOT, 'plugins', 'plugin-registry.json'), 'utf8')
+    );
+    var enabledCount = registry.plugins.filter((p) => p.enabled !== false).length;
     assert.ok(
-      output.includes('23'),
-      'validate reports 23 plugins checked'
+      output.includes('Plugins checked: ' + enabledCount),
+      'validate reports ' + enabledCount + ' plugins checked'
     );
   });
 });

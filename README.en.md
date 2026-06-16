@@ -3,7 +3,7 @@
 > A plugin-based AI Agent workflow framework that provides task management, workflow orchestration, and role management for Claude Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.2.7-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.3.4-blue.svg)](https://github.com/ph419/tackle)
 
 **[中文文档](https://github.com/ph419/tackle/blob/main/README.md)**
 
@@ -103,6 +103,7 @@ tackle-harness build
 | `tackle-harness status` | Show build status and plugin statistics |
 | `tackle-harness config` | Show/validate current configuration |
 | `tackle-harness list` | List all registered plugins |
+| `tackle-harness team-cleanup <name>` | Deterministically clean up residual Agent Teams directories (WP-179) |
 | `tackle-harness version` | Show version information |
 | `tackle-harness --root <path>` | Specify target project path (default: current directory) |
 
@@ -127,6 +128,8 @@ tackle-harness build
 | workflow-orchestrator | "开始工作流" / "start workflow" | Orchestrate complete workflows |
 | task-archive | "任务归档" / "archive tasks" | Archive completed work packages |
 | tackle-sync | "配置tackle" / "sync" / "init" | Auto-detect project state and setup/update/migrate |
+| agentic-loop | "自主循环" / "agentic loop" | Observe→Think→Act→Reflect→Decide autonomous loop (v0.3+) |
+| tackle-plan | "生成计划" / "make plan" | Goal-driven plan generation, consumed by agentic-loop (v0.3+) |
 
 ## Workflow Overview
 
@@ -146,14 +149,23 @@ Requirement → Plan(P0) → Review(P1) → Execute(P2) → Verify(P3) → Repor
 
 > For the full data flow diagram and stage details, see [docs/ai_workflow.md](docs/design/ai_workflow.md)
 
+### Agentic Loop (Autonomous Loop, v0.3+)
+
+After P1 approval, `skill-agentic-loop` can take over P2↔P3 and enter an **autonomous loop** without per-round human intervention. The decision state machine `provider-loop-engine` advances via `Observe → Think → Act → Reflect → Decide` (continue / achieved / diverged / circuit-broken / timeout):
+
+- State persists to state-store — survives context compaction, resumable from checkpoint
+- Failures drive `retry` (carrying failingDrivers refine feedback) / `resplit` / `dispatch`, with tolerance for partial progress (improvements don't count toward divergence)
+- Triple upper bounds: `max_iterations`, `max_round_time_ms`, `max_wall_time_ms` (all configurable)
+- On timeout / divergence / circuit-break, `loop-report` emits a summary; `applyDirective` keeps a human-intervention channel open
+
 ## Plugin Architecture
 
-Tackle Harness contains 4 plugin types, 23 plugins total:
+Tackle Harness contains 4 plugin types, 26 plugins total:
 
 | Type | Count | Purpose |
 |------|-------|---------|
-| Skill | 15 | Executable skills, directly callable by Claude Code |
-| Provider | 4 | State store, role registry, memory store, watchdog |
+| Skill | 17 | Executable skills, directly callable by Claude Code |
+| Provider | 5 | State store, loop decision engine, role registry, memory store, watchdog |
 | Hook | 2 | Skill gate + session-start plan-mode rule injection |
 | Validator | 2 | Document sync validation, work package validation |
 
@@ -182,7 +194,7 @@ If using `npm install tackle-harness` (non-global), `tackle-harness build` gener
 ```
 your-project/
   .claude/
-    skills/                          # 15 skills
+    skills/                          # 17 skills
       skill-task-creator/skill.md
       ...
     hooks/                           # 2 hooks
