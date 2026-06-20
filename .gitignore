@@ -11,6 +11,10 @@ docs/*
 # task.md 是项目主规划文档，必须保持 git 跟踪以防误删。
 # 切勿对它执行 `git rm`/`git rm --cached`，也不要在 .gitignore 中忽略它。
 
+# docs/plan/ 是 skill-tackle-plan 的运行时落盘区（plan-reader 契约计划文件），
+# 设计本意就是 gitignore（落盘即生效，不入 git diff 视野，详见 docs/plan/README.md）。
+# 测试若需要真实 plan fixture，应放在 test/fixtures/ 下跟踪，而非放本目录。
+
 # PROGRESS.md 是 loop driver 运行时写入的进度状态文件（每次运行改写，无版本控制价值）。
 # per-loop 隔离目录里的 PROGRESS.md 已由上方 .claude-state* 规则覆盖；此处只忽略仓库根的这一份。
 /PROGRESS.md

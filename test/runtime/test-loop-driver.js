@@ -433,9 +433,13 @@ test('隔离 loop execute 后 cwd 还原（不污染同进程后续逻辑）', a
     var h = makeCtx(projectRoot, [planPath, '--executor=local', '--loop-id=restore-test', '--state-dir=.ts-restore']);
     await loopCmd.execute(h.ctx);
     assert.strictEqual(h.exitCode.value, 0, 'loop 应收敛');
-    // 关键断言：execute 结束后 cwd 必须还原回 projectRoot（而非停留在隔离目录）
+    // 关键断言：execute 结束后 cwd 必须还原回 projectRoot（而非停留在隔离目录）。
+    // macOS 上 os.tmpdir() 返回 '/var/folders/...'，但该路径是 '/private/var/folders/...'
+    // 的符号链接，process.chdir 后 process.cwd() 返回真实路径（含 /private 前缀）。
+    // 故两端都做 realpath 规约后再比较，避免符号链接前缀差异导致的假阴性。
     assert.strictEqual(
-      path.resolve(process.cwd()), path.resolve(projectRoot),
+      fs.realpathSync(path.resolve(process.cwd())),
+      fs.realpathSync(path.resolve(projectRoot)),
       'execute 后 cwd 必须还原（不应停留在 .ts-restore/restore-test）'
     );
   } finally {

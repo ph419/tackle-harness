@@ -43,7 +43,9 @@ function cleanupTmpDir(dir) {
 }
 
 var PROJECT_ROOT = path.resolve(__dirname, '..', '..');
-var REAL_PLAN_PATH = path.join(PROJECT_ROOT, 'docs', 'plan', 'todo-cli-smoke.md');
+// fixture 随仓库跟踪于 test/fixtures/（docs/plan/ 是运行时落盘区，被 gitignore，
+// 不放测试 fixture）。详见 test/fixtures/README 与 docs/plan/README.md。
+var REAL_PLAN_PATH = path.join(PROJECT_ROOT, 'test', 'fixtures', 'todo-cli-smoke.md');
 
 /**
  * 构造伪 ctx，捕获 exit code 与 log，在隔离 tmpdir 中运行 driver。
