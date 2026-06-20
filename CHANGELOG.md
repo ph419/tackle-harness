@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] - 2026-06-20
+
+### Added
+
+- **Agentic Loop Node 进程级 Driver（M1~M3，WP-184~187）**：把循环载体从「Claude 会话内伪代码 while 循环」升级为 **Node 进程级稳态循环**，解除与 Claude Code 的深度耦合。新增 `tackle loop <plan> [--executor=...] [--loop-id=X] [--max-iters=N]` 子命令（`bin/commands/loop.js`）：解析 plan → `new LoopEngine()` → `while(!terminal) step()` + 消费 `pendingAction` → executor.run → 回填 `lastChecklist` + 写 PROGRESS.md；退出码 achieved→0 / timeout·diverged·circuit_broken·aborted→1。engine 仅 `_decide` 增 noProgress 协同判据（+16/-2，向后兼容，详见下方 WP-191 Fixed），其余零改动（硬约束 #1：不触碰 `_think/_act/_reflect/_observe`）
+- **provider 路由层与三 executor 实现（WP-185）**：新增 `plugins/runtime/loop-executor.js` 工厂（惰性 require + REGISTRY 注册），driver 只认 `createExecutor(provider, opts)`。三个 executor 实现同一份 `{ name, run(pendingAction)->Promise<CheckResult>, config }` 契约：
+  - `executor-local.js`：mock 固定回 passed，供单测与冒烟（100/h 限流，不调真模型）
+  - `executor-claude.js`（WP-187）：spawn `claude -p --output-format json`，注入 WP 文档/mode/strategy/failingDrivers 构造 prompt，解析 `json:machine-readable` block 为 CheckResult，git HEAD 前后对比做进展检测；`createExecutor({ spawnFn })` 注入 spawn 实现可测
+  - `executor-glm.js`（WP-188）：复用 claude prompt+解析，spawn claude CLI 指向智谱 anthropic 兼容端点（`ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`）+ `--model`；内置 5h 滚动窗口额度计数 + 高峰系数（高峰 3x / 非高峰 2x，仅 GLM-5.x），接近软阈值「降速返回」交由 driver 发散检测兜底（硬约束 #2）。**合规**：智谱套餐额度仅限官方编码工具内使用，走 claude CLI 中转享额度且合规，禁跨机共享 API Key
+- **全局 loop coordinator 守护进程（M5，WP-189~190）**：新增 `tackle loop-server <start|status|list|abort>` CLI（`bin/commands/loop-server.js`）+ 纯逻辑核心 `plugins/runtime/loop-server-core.js`。扫 per-loop 隔离目录只读聚合全局视图（复用 `loop-coordinator.aggregateLoopStates`）、按 provider 分桶额度池（claude 500/5h、glm 400/5h、local ∞，超 0.95 阈值熔断）、两类熔断策略（任一 circuit_broken 触发全局回退 / provider 额度触顶兜底）。熔断只写独立 `directive.json` sidecar（单向通道，绝不写各 loop 的 `.claude-state`，规避多进程并发写），driver 每轮读命中后调本进程 `api.applyDirective`
+- **per-loop state 目录物理隔离（WP-189）**：`--loop-id=X` 时建立 `{stateDir}/{loopId}/` 隔离目录（`.claude-state` / `PROGRESS.md` / `.executor` sidecar 全隔离）+ task.md 占位 + `process.chdir`，engine 基于 cwd 探测 projectRoot 自然指向隔离目录，物理规避 `.claude-state` 单文件多进程并发写丢数据（`state-store.js:19-23`）。不传 `--loop-id` 时回退 M1~M3 形态（回退安全）
+- **provider 存活信号 sidecar**：driver init 后写 `.executor`（provider/startedAt/pid），coordinator 据此按 provider 分桶 + 以 mtime 作进程心跳（超 5min 标 stale/disconnected）
+
+### Changed
+
+- **CLI argv 透传**（`bin/tackle.js` / `bin/context.js`）：context 新增 `argv` 字段（命令名后的参数数组），`loop`/`loop-server` 等子命令据此解析自身参数；旧调用方默认 `[]` 不破坏
+- **`loop-snapshot.js` WP 编号口径放宽 + 完成态兜底（WP-186）**：`parseProgressMarkdown` 与 `queryGitDiff` 的 WP 正则从 `WP-?\d+` 放宽到 `WP-?[\w-]+`（支持字母/混合编号如 WP-A / WP-175，与 engine `_think` 的 `goal.wpIds` 口径一致）；`buildWorkPackages` 新增 checklist 完成态兜底——`lastChecklist.passed===true` 且 wpId 在 goal 内时即使 PROGRESS.md 未写也视为 completed（防写入与 checklist 回填时序竞态）。抽取 `inGoalStatic` 供完成态兜底与 failed 越界保护共用
+
+### Fixed
+
+- **WP-191 Agentic Loop Node Driver 审查问题修复**（对 WP-184~190 未提交代码的独立深度审查，fine-grained 10 子包，2 P0 + 4 P1 + 7 项 P2/P3，新增 ~50 测试）：
+  - **WP-190 守护进程心跳失效（P0）**：`.executor` sidecar 主循环刷新 mtime（`touchExecutorSidecar` 用 `fs.utimesSync`），每轮 step 前 + executor.run 前各 touch 一次，防单轮 executor.run >5min 致 coordinator 误判 disconnected
+  - **WP-190 熔断指令无消费确认（P0）**：driver `applyDirective` 成功后清理 directive.json（`clearAbortDirective`）+ coordinator 兜底清理终态 loop 残留（`cleanupConsumedDirectives`），防 `--loop-id` 恢复时二次熔断 + 防 driver crash 残留
+  - **WP-187 进展检测恒判无进展 + 接入发散熔断（P1，唯一改 engine）**：进展检测改用 `git status --porcelain` 工作树脏度（`readWorktreeDirty`/`applyProgressDetection`，glm 零漂移复用 claude），engine `_decide` 并列消费 `noProgressStreak`（与现有 proximity diverged 协同：任一连续 N 轮 → diverged），engine 用自身 `_config.divergence_threshold` 判 streak 防 evaluator.diverged 短路回归
+  - **WP-190 loop-server stop 子命令（P1）**：PID 文件 + 跨平台 kill（Win `taskkill /F /T` / Unix `process.kill SIGTERM`），3 级降级（PID 缺失/进程已死/kill 异常均 exit 0 不阻断）
+  - **WP-190 额度池口径 + model 传递（P1）**：model 统一通道 `executor.config.model`（driver 一行取值无 provider 分支，glm 真实/claude/local 占位），coordinator 硬阈值 0.95 > executor 软阈值 0.9 单测锁定避免双重触发
+  - **WP-186 字母编号 plan-reader 放宽（P1）**：`extractExplicitWpId`/`extractDependencyRefs` 正则放宽为 `WP-?([A-Za-z0-9][\w-]*)`（与 loop-snapshot 口径对齐），依赖图字母编号不断裂
+  - **P2/P3 批量 7 项**：glm 正则收紧 `^glm[-_]?5(?!\d)`、删死配置 wpDocsDir、spawn_error 不计额度（quotaRecorded 闸门）、限流文档对齐、**chdir finally 还原 cwd**（消除跨文件测试间歇失败根因）、listLoopIds 过滤 symlink（safePath.isSymlink）、sidecar 写失败 log warning（不再静默吞错）
+  - **测试补齐**：todo-cli-smoke 真实 e2e、proximity 数值单调断言、staleMs 边界（Windows stop/noProgress 协同已由 impl 覆盖）
+  - **文档对齐**：修正 WP-184~190 失实 checklist（WP-187 进展检测方法 `git rev-parse HEAD`→`git status --porcelain`、WP-190 stop CLI 描述）+ 移除误导注释（loop.js:194、executor-claude.js:438）
+
+### Verified
+
+- npm test 全量测试通过（含新增 `test-loop-driver` / `test-loop-executor` / `test-executor-{local,claude,glm}` / `test-loop-server` / `test-loop-snapshot` WP-186 回归）
+- **WP-191 验证**：npm test 1591 测零回归，coverage 88.58%（≥70% CI 阈值），真实 `tackle loop docs/plan/todo-cli-smoke.md --executor=local` 收敛 achieved（3/3 WP，proximity 1.000，4 轮），3 不变量核查通过（engine 改动范围受控仅 _decide +16/-2 / proximity 语义并列保留 / provider 零分支），chdir 跨文件测试间歇失败根因消除
+
 ## [0.3.5] - 2026-06-18
 
 ### Fixed
@@ -439,6 +475,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.3.6]: https://github.com/ph419/tackle/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/ph419/tackle/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/ph419/tackle/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/ph419/tackle/compare/v0.3.2...v0.3.3

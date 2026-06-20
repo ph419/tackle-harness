@@ -3,7 +3,7 @@
 > A plugin-based AI Agent workflow framework that provides task management, workflow orchestration, and role management for Claude Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.3.5-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.3.6-blue.svg)](https://github.com/ph419/tackle)
 
 **[中文文档](https://github.com/ph419/tackle/blob/main/README.md)**
 
@@ -79,6 +79,8 @@ tackle-harness build
 
 > **Note**: With global install, skills and hooks are managed by npm globally. Your project only needs config files (`.claude/config/` and `.claude/settings.json`).
 
+> **Local-only artifacts are not version-controlled**: `task.md` (your local master index) and `docs/wp/*.md` (work package definitions) are local workflow artifacts and are excluded from version control via `.gitignore` (see `.gitignore:9-11`). They are **not** shipped when you clone this repo — `task.md` is generated on demand by `tackle-harness` in your own project, or restored from the archive (`docs/archive/`). The framework itself (`plugins/`, `bin/`, `test/`) is tracked normally and is unaffected.
+
 ## Use Cases
 
 - **New feature development** — Requirements analysis → work package split → parallel development → quality check
@@ -104,6 +106,8 @@ tackle-harness build
 | `tackle-harness config` | Show/validate current configuration |
 | `tackle-harness list` | List all registered plugins |
 | `tackle-harness team-cleanup <name>` | Deterministically clean up residual Agent Teams directories (WP-179) |
+| `tackle-harness loop <plan> [--executor=local\|claude\|glm] [--loop-id=X] [--max-iters=N]` | Drive the Agentic Loop as a Node process (v0.3.4+, swappable providers) |
+| `tackle-harness loop-server <start\|status\|list\|abort>` | Global loop coordinator daemon: aggregate multi-loop view, per-provider quota pool, global circuit break (v0.3.6+) |
 | `tackle-harness version` | Show version information |
 | `tackle-harness --root <path>` | Specify target project path (default: current directory) |
 
@@ -157,6 +161,32 @@ After P1 approval, `skill-agentic-loop` can take over P2↔P3 and enter an **aut
 - Failures drive `retry` (carrying failingDrivers refine feedback) / `resplit` / `dispatch`, with tolerance for partial progress (improvements don't count toward divergence)
 - Triple upper bounds: `max_iterations`, `max_round_time_ms`, `max_wall_time_ms` (all configurable)
 - On timeout / divergence / circuit-break, `loop-report` emits a summary; `applyDirective` keeps a human-intervention channel open
+
+#### Node Process Driver & Provider Decoupling (v0.3.4+)
+
+From v0.3.4 the loop carrier can be upgraded from "pseudo-code inside a Claude session" to a **Node process-level driver** (`tackle loop`), reducing Claude / any provider to a swappable stateless executor:
+
+```bash
+# Smoke test with the mock executor (no real model calls, free convergence check)
+tackle-harness loop docs/plan/todo-cli-smoke.md --executor=local
+
+# Drive Claude Code to write code round by round
+tackle-harness loop docs/plan/my-plan.md --executor=claude
+
+# Zhipu GLM Coding Plan (enjoys subscription quota, via claude CLI relay, compliant)
+tackle-harness loop docs/plan/my-plan.md --executor=glm
+
+# Parallel multi-loop: physically isolated state dirs
+tackle-harness loop planA.md --loop-id=A --executor=claude &
+tackle-harness loop planB.md --loop-id=B --executor=glm &
+```
+
+- **Swappable provider**: switching `--executor=local|claude|glm` needs zero driver/engine changes — the decoupling point is the unified `executor.run()` contract (adding an executor is one REGISTRY line in `loop-executor`)
+- **Parallel multi-loop**: `--loop-id=X` creates a per-loop isolated directory, physically avoiding single-state-file concurrent-write data loss
+- **Global coordination**: the `tackle loop-server` daemon aggregates the multi-loop global view, pools quota per provider, and triggers global rollback on any circuit break
+- **GLM compliance**: the Zhipu subscription quota is only usable inside official coding tools, so the glm executor relays through the claude CLI (quota + compliant); never share API keys across machines
+
+> Full design in [`docs/reports/agentic-loop-design.md`](docs/reports/agentic-loop-design.md) §11; build blueprints in [`docs/plan/agentic-loop-node-driver.md`](docs/plan/agentic-loop-node-driver.md) and [`docs/plan/agentic-loop-node-driver-m4m5.md`](docs/plan/agentic-loop-node-driver-m4m5.md).
 
 ## Plugin Architecture
 
