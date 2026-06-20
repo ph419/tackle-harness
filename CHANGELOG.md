@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **P2/P3 批量 7 项**：glm 正则收紧 `^glm[-_]?5(?!\d)`、删死配置 wpDocsDir、spawn_error 不计额度（quotaRecorded 闸门）、限流文档对齐、**chdir finally 还原 cwd**（消除跨文件测试间歇失败根因）、listLoopIds 过滤 symlink（safePath.isSymlink）、sidecar 写失败 log warning（不再静默吞错）
   - **测试补齐**：todo-cli-smoke 真实 e2e、proximity 数值单调断言、staleMs 边界（Windows stop/noProgress 协同已由 impl 覆盖）
   - **文档对齐**：修正 WP-184~190 失实 checklist（WP-187 进展检测方法 `git rev-parse HEAD`→`git status --porcelain`、WP-190 stop CLI 描述）+ 移除误导注释（loop.js:194、executor-claude.js:438）
+- **跨平台 CI 测试稳定性（`ed895b6` + `b52074a`）**：
+  - **fixture ENOENT（全平台）**：`.gitignore` 的 `docs/*` 误伤 `test-wp191-test-gaps.js` 依赖的 plan fixture，CI checkout 后丢失；将 `todo-cli-smoke.md` 迁入 `test/fixtures/` 并跟踪
+  - **S3 路径穿越守卫 `sourceEscapesRepoRoot()`（`resolve-plugin-path.js`，安全相关）**：在 `path.resolve` 之前新增字面层守卫，拦截 Windows 风格反斜杠 source——POSIX 主机 `path.resolve` 不识别反斜杠致 `assertWithinRepo` 失效。采用**扫描过程最小瞬时深度**（`minDepth < -1`）而非最终净深度：后者会被 `..\..\Windows\System32` 这类「先上爬再下钻」构造中和为 0 而漏判（Windows 靠 `assertWithinRepo` 兜底掩盖了本地回归）
+  - **macOS `/var` ↔ `/private/var` 符号链接**：cwd 还原断言改用 `fs.realpathSync()` 双端规约后比较，消除 macOS-only 失败
 
 ### Verified
 
