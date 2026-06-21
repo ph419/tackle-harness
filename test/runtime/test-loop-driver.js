@@ -1249,6 +1249,46 @@ test('execute：default executor 日志输出 provider/model 探测结果', asyn
   }
 });
 
+// --settings 绝对路径（在 projectRoot 之外，如用户全局 ~/.claude/xxx.json）→ 放行
+//   回归 WP-188 P6：逃逸检查只对相对路径生效；绝对路径是用户明确意图，
+//   claude --settings 只读文件 + existsSync 兜底，不做 projectRoot 囚禁。
+test('execute：--settings 绝对路径（projectRoot 之外）→ 放行并透传', async function () {
+  var projectRoot = makeTmpDir();
+  fs.mkdirSync(path.join(projectRoot, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'task.md'), '# Task\n', 'utf8');
+  fs.writeFileSync(path.join(projectRoot, '.claude', 'plan.md'), makePlan(1), 'utf8');
+  var planPath = path.join(projectRoot, '.claude', 'plan.md');
+  // 另起一个独立 tmpdir 放 settings：绝对路径且在 projectRoot 之外（模拟用户全局 .claude 目录）
+  var outsideDir = makeTmpDir();
+  var settingsFile = path.join(outsideDir, 'settings-glm-5.2[1m]max.json');
+  fs.writeFileSync(settingsFile, JSON.stringify({ model: 'glm-5.2' }), 'utf8');
+  var origCwd = process.cwd();
+
+  var realCreate = loopCmd._loopExecutor.createExecutor;
+  var capturedOpts = null;
+  loopCmd._loopExecutor.createExecutor = function (provider, opts) {
+    capturedOpts = opts;
+    return realCreate.call(loopCmd._loopExecutor, 'local', { projectRoot: opts.projectRoot });
+  };
+
+  try {
+    process.chdir(projectRoot);
+    var h = makeCtx(projectRoot, [planPath, '--executor=default', '--settings=' + settingsFile]);
+    await loopCmd.execute(h.ctx);
+    assert.notStrictEqual(h.exitCode.value, 2, '绝对路径不应被逃逸检查拦截（exit 2）');
+    var combined = h.logs.join('\n');
+    assert.ok(combined.indexOf('within project root') === -1,
+      '绝对路径不应触发逃逸检查提示');
+    assert.ok(capturedOpts, 'createExecutor 应被调用（说明通过了校验）');
+    assert.strictEqual(capturedOpts.settingsPath, settingsFile, '绝对路径应透传');
+  } finally {
+    loopCmd._loopExecutor.createExecutor = realCreate;
+    process.chdir(origCwd);
+    cleanupTmpDir(projectRoot);
+    cleanupTmpDir(outsideDir);
+  }
+});
+
 // --settings 不存在 → exit 2（execute 层存在性校验）
 test('execute：--settings 指向不存在的文件 → exit 2', async function () {
   var projectRoot = makeTmpDir();

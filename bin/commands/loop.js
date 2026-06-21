@@ -504,19 +504,24 @@ module.exports = {
     //   回退安全：不指定 --settings 时 settingsResolved=null，executor 走原默认行为。
     var settingsResolved = null;
     if (args.settingsPath) {
-      settingsResolved = path.isAbsolute(args.settingsPath)
+      var _settingsIsAbs = path.isAbsolute(args.settingsPath);
+      settingsResolved = _settingsIsAbs
         ? args.settingsPath
         : path.resolve(projectRoot, args.settingsPath);
-      // P6（WP-188 评审）：路径逃逸检查——--settings 须在 projectRoot 内。
-      //   深度防御：claude --settings 本只读文件、且下方 existsSync 已能挡多数情况，
-      //   此处显式拦截是为给用户清晰错误信息，并拦掉 --settings=../../etc/x 这类明显异常路径。
-      var _settingsRel = path.relative(projectRoot, settingsResolved);
-      if (_settingsRel.startsWith('..') || path.isAbsolute(_settingsRel)) {
-        log(ctx.colorize('Error: --settings path must be within project root: ' +
-          args.settingsPath + ' (resolved: ' + settingsResolved + ')', 'red'));
-        log('Usage: tackle loop <plan.md> [--executor=local|default] [--settings=<path>]');
-        ctx.exit(2);
-        return;
+      // P6（WP-188 评审）：路径逃逸检查——仅对**相对路径**生效。
+      //   绝对路径（如 C:/Users/.../.claude/settings-xxx.json，Claude Code 全局 settings 标准位置）
+      //   是用户明确意图：放行。claude --settings 本只读文件、下方 existsSync 已兜底，
+      //   对绝对路径做逃逸拦截无安全价值，反而拦掉最常见用法（全局 settings profile）。
+      //   仅拦相对路径的 .. 逃逸（--settings=../../etc/x 这类可能笔误/意外的路径）。
+      if (!_settingsIsAbs) {
+        var _settingsRel = path.relative(projectRoot, settingsResolved);
+        if (_settingsRel.startsWith('..') || path.isAbsolute(_settingsRel)) {
+          log(ctx.colorize('Error: --settings relative path must be within project root: ' +
+            args.settingsPath + ' (resolved: ' + settingsResolved + ')', 'red'));
+          log('Usage: tackle loop <plan.md> [--executor=local|default] [--settings=<path>]');
+          ctx.exit(2);
+          return;
+        }
       }
       if (!fs.existsSync(settingsResolved)) {
         log(ctx.colorize('Error: settings file not found: ' + settingsResolved, 'red'));

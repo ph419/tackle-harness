@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.11] - 2026-06-21
+
+### Fixed
+
+- **`--settings` 绝对路径逃逸检查误杀（WP-188 P6 回归）**：`bin/commands/loop.js` 原 P6 路径逃逸守卫对**绝对路径**也生效，导致用户指向 projectRoot 之外的全局 settings（如 `C:/Users/<user>/.claude/settings-glm-5.2[1m]max.json`，即 Claude Code 全局 settings 标准位置）被错误拦截并 `exit 2`。现按 P6 原意收窄：逃逸检查**仅对相对路径**生效（拦 `--settings=../../etc/x` 这类笔误/意外的 `..` 逃逸），绝对路径视为用户明确意图直接放行——`claude --settings` 本只读文件、下方 `existsSync` 已兜底存在性，对绝对路径做 projectRoot 囚禁无安全价值，反而拦掉最常见用法（全局 settings profile 切换）。错误信息同步从 `must be within project root` 改为 `relative path must be within project root`，避免误导
+
+### Added
+
+- `test/runtime/test-loop-driver.js`：新增 `execute：--settings 绝对路径（projectRoot 之外）→ 放行并透传` 回归（settings 文件放独立 tmpdir 模拟用户全局 `.claude` 目录，断言不触发 `exit 2`、不出现逃逸检查提示、`createExecutor` 仍被调用且 `opts.settingsPath` 原样透传）
+
+### Verified
+
+- `node --test test/runtime/test-loop-driver.js` 全量通过（59/0），含新增绝对路径放行回归
+
 ## [0.3.10] - 2026-06-21
 
 ### ⚠ BREAKING
