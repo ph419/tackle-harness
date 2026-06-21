@@ -496,3 +496,29 @@ test('_buildClaudeArgs：仅 flags，prompt 不进 argv（S1 走 stdin）', func
   assert.strictEqual(args[atIdx + 1], 'Read,Bash', '--allowedTools 应为白名单拼接，且在末位');
   assert.ok(args.indexOf('my prompt') === -1, 'args 不应含 prompt（已改走 stdin）');
 });
+
+test('_buildClaudeArgs：传 settingsPath 时追加 --settings（透传 claude 原生 flag）', function () {
+  var args = executorClaude._buildClaudeArgs(['Read'], 'C:/x/settings-glm-5.2[1m]max.json');
+  var sIdx = args.indexOf('--settings');
+  assert.ok(sIdx !== -1, '应含 --settings');
+  assert.strictEqual(args[sIdx + 1], 'C:/x/settings-glm-5.2[1m]max.json');
+  // 骨架 flags 仍在
+  assert.ok(args.indexOf('-p') !== -1);
+  // 无 settingsPath 时不追加（回归：长度仍为 5）
+  var args2 = executorClaude._buildClaudeArgs(['Read']);
+  assert.strictEqual(args2.indexOf('--settings'), -1, '无 settingsPath 时不应含 --settings');
+});
+
+test('run() 透传 settingsPath 到 spawn args', async function () {
+  var fakeSpawn = makeFakeSpawn({ stdout: '{"result":"ok"}', exitCode: 0 });
+  var exec = createExecutor({
+    spawnFn: fakeSpawn,
+    projectRoot: process.cwd(),
+    settingsPath: '/tmp/my-profile.json',
+  });
+  await exec.run({ wpId: 'WP-1' });
+  var spawnArgs = fakeSpawn.calls[0].args;
+  var sIdx = spawnArgs.indexOf('--settings');
+  assert.ok(sIdx !== -1, 'spawn args 应含 --settings');
+  assert.strictEqual(spawnArgs[sIdx + 1], '/tmp/my-profile.json');
+});

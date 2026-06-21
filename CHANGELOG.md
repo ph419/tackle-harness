@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10] - 2026-06-21
+
+### ⚠ BREAKING
+
+- **删除 `--executor=glm`**：智谱 GLM 不再是独立 executor。改用 `--executor=default --settings=<glm-profile.json>`，由 `provider-resolver` 探测到 glm 模型后自动启用 5h 额度感知。`--executor=glm` 现抛 `UNKNOWN_EXECUTOR`（错误信息会列出可用 executor）。`--executor=claude` 保留为 `default` 的别名（向后兼容 v0.3.4~0.3.8），但 listProviders 不列别名，推荐显式用 `default`
+
+### 🚚 从 0.3.8 迁移到 0.3.10（GLM 用户必读）
+
+智谱 GLM 从「独立 executor」改为「单一 default executor + 自动探测」，迁移分 4 步：
+
+1. **改 executor 名**：`--executor=glm` → `--executor=default --settings=<glm-profile.json>`。`--executor=glm` 现抛 `UNKNOWN_EXECUTOR`
+2. **端点+认证改由 settings 文件携带**：原 glm executor 依赖 `ZHIPU_API_KEY` 环境变量注入（由 executor 在 spawn 前硬编码补 `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`）。0.3.10 起 executor **不再注入任何环境变量**，端点（`ANTHROPIC_BASE_URL`）与认证（`ANTHROPIC_AUTH_TOKEN`/`apiKey`）全权交给 settings 文件
+3. **生成/放置 settings 文件**：在 `~/.claude/` 下放一份指向智谱 anthropic 兼容端点的 settings JSON（如 `settings-glm-5.2[1m]max.json`），内含 `model`（如 `glm-5.2[1m]`，provider-resolver 据此匹配 glm 规则）+ `env` 段携带端点与认证。一份文件即一套套餐档位，多档位放多份，用 `--settings=` 按需切换（也可并存 mimo/deepseek 等其它 provider 的 settings 文件）
+4. **`--executor=claude` 仍可用**：保留为 `default` 的别名（向后兼容 v0.3.4~0.3.8 的脚本），但推荐显式写 `--executor=default`，便于阅读与 listProviders 输出一致（别名不列出）
+
+### Added
+
+- **单一 `default` executor + 自动模型探测（WP-188 重构）**：把"真实 Anthropic / 智谱 GLM"两类 executor 合并为 `plugins/runtime/executor-default.js`。provider 不再焊死成 executor 名，而是由新增的 `plugins/runtime/provider-resolver.js`（"匹配程序"）探测生效模型并按规则匹配 provider profile，决定 default executor 启用哪些特性：
+  - **模型探测顺序**（用户要求"配置文件优先于环境变量"）：`--settings` 文件的 `model` 字段 → 文件 `env.ANTHROPIC_DEFAULT_SONNET_MODEL`（fallback OPUS/HAIKU）→ 环境变量 `ANTHROPIC_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL`。三者都无 → provider=unknown（纯透传，不启用任何特性）
+  - **匹配规则外置**到 `harness-config.yaml` 新增的 `loop.providers` 段（modelRegex / 可选 baseUrlRegex 二次确认 / 可选 quota 段）；loop.js 引入 `ConfigManager` 读取。无配置时用 resolver 内置 DEFAULT_PROVIDERS（glm/mimo/deepseek，开箱即用），可用 `HARNESS_LOOP__*` 环境变量覆盖
+  - **智谱额度逻辑搬迁**：executor-glm 的 `isPeakHour`/`quotaCostFactor`/`createQuotaTracker` + 5h 窗口守卫搬到 executor-default，仅在探测到 glm 模型（`features.quotaAware=true`）时启用；mimo/deepseek/unknown 纯透传，不计额度。原 executor-glm 的端点 env 注入（`buildAnthropicEnv`/`resolveApiKey`）**删除**——端点+认证现全由 settings 文件携带，executor 不再注入环境变量
+  - **`templates/harness-config.yaml`** 新增 `loop.providers` 段（glm 带完整 quota 配置，mimo/deepseek 纯透传），作为开箱默认
+- **启动日志补 provider 探测结果**：`execute` 打印 `provider: glm (model=glm-5.2[1m]) [quota-aware]`，让用户直观看到探测命中
+
+### Changed
+
+- **`loop-executor.js`**：REGISTRY 删 `glm`、加 `default`；新增 `claude`→`default` 别名（`_ALIASES`，listProviders 不列别名避免歧义）；`createExecutor` 内做别名解析
+- **`bin/commands/loop.js`**：引入 `ConfigManager` + `provider-resolver`；execute 对非 local executor 调 `resolveProvider` 拿 `{model, provider, quotaConfig}` 透传给 default executor；解析失败降级纯透传（回退安全，不阻断）
+- **`loop-server-core.js`**：coordinator 原复用 `executor-glm._quotaCostFactor` 的高峰系数换算，改为复用 `executor-default._quotaCostFactor` + `provider-resolver` 的 GLM quotaConfig（同源无重复）
+- `bin/commands/help.js` / `README.md` / `README.en.md`：loop 用法改为 `--executor=local|default`，示例改写为单一 default + 自动探测模型的新模型
+
+### Removed
+
+- `plugins/runtime/executor-glm.js`（整文件删除，逻辑迁至 executor-default + provider-resolver）
+- `test/runtime/test-executor-glm.js`（逻辑迁至 test-provider-resolver.js + test-executor-default.js）
+
+### Verified
+
+- `npm test` 全量通过（1673/0；其中 `node --test` 的 test/runtime + test/integration 子集 1557/0），新增覆盖：`test-provider-resolver.js`（30 测：探测顺序/BOM strip/坏 JSON 容错/正则匹配/baseUrlRegex 确认/quota 提取/自定义 providers/正则编译容错/内部工具）、`test-executor-default.js`（23 测：args 构造/quotaAware 门控/高峰 3x-非高峰 2x/spawn 失败不计额度/限流超时/额度逻辑零漂移搬迁回归/接口契约）、`test-loop-executor.js`（13 测：default 路由/claude 别名/glm 抛错/listProviders 不含别名/opts 透传/接口契约同构）、`test-loop-driver.js`（execute 透传 model/provider/quotaConfig + 日志含探测结果 + --settings 逃逸拦截）、`test-loop-server.js`（43 测：含 coordinator 高峰系数读用户 config 的 resolveGlmQuotaConfig 回归）
+
+## [0.3.9] - 2026-06-21
+
+### Added
+
+- **`tackle loop --settings=<path>` 动态切换 claude 配置**：loop 子命令新增 `--settings` flag，透传 claude CLI 原生 `--settings <file-or-json>`，把用户预先放好的多套 settings JSON（不同 provider 如 mimo/deepseek，或同一 provider 的不同套餐档位如智谱 `settings-glm-5.2[1m]max.json`）喂给 claude，而非仅靠其默认发现机制加载单一 `~/.claude/settings.json`。`bin/commands/loop.js` 的 `parseArgs` 解析该 flag（支持绝对/相对路径、含方括号/点等真实文件名），`execute` 在 chdir 前解析为绝对路径并做 `fs.existsSync` 校验（不存在则 exit 2），透传到 `createExecutor(opts.settingsPath)`；启动日志补 `settings:` 行
+- **executor-claude / executor-glm 双双 settings-aware**：`buildClaudeArgs(allowedTools, settingsPath?)` 与 `buildGlmArgs(allowedTools, model, settingsPath?)` 在 settingsPath 非空时追加 `--settings`。glm executor 检测到 settings 接管时（`settingsManaged`），用 4 处守卫实现"settings 全权、跳过硬编码智谱专属逻辑"：① 跳过智谱 env 注入（`buildAnthropicEnv`），改用父进程 env 原样透传；② 跳过 `--model` 追加（model 由 settings 文件决定）；③ 跳过 apiKey 缺失前置拦截与额度前置检查（否则切 mimo 时会因没设 `ZHIPU_API_KEY` 直接 spawn 不出去）；④ close 后不 `quota.record()`（智谱额度模型对非智谱 provider 计量不准）
+- **help / README 文档**：`bin/commands/help.js` 的 loop 用法块补 `--settings` 行；README.md / README.en.md 的 loop 代码块补 mimo / 智谱套餐档位 / 真实 Claude 三类切换示例，特性列表新增"配置可切换"条目，命令表行补 `--settings`
+
+### Changed
+
+- `buildClaudeArgs` / `buildGlmArgs` 签名向后兼容：新增参数均为可选，未传时输出与改造前逐字节一致（回归保护硬约束）
+
+### Verified
+
+- `node --test`（test/runtime + test/integration）全量通过（1582/0），其中 settings-aware 新增覆盖：`test-executor-claude.js`（--settings 透传 args / run spawn 断言）、`test-executor-glm.js`（settings 接管跳过 env 注入 / 跳过 apiKey 拦截 / 不计智谱额度 / 接近上限不降速）、`test-loop-driver.js`（parseArgs 解析 --settings / execute 透传 opts.settingsPath / 不存在文件 exit 2）
+
 ## [0.3.8] - 2026-06-21
 
 ### Changed
@@ -498,6 +554,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.3.10]: https://github.com/ph419/tackle/compare/v0.3.9...v0.3.10
+[0.3.9]: https://github.com/ph419/tackle/compare/v0.3.8...v0.3.9
+[0.3.8]: https://github.com/ph419/tackle/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/ph419/tackle/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/ph419/tackle/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/ph419/tackle/compare/v0.3.4...v0.3.5

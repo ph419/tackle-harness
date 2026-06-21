@@ -309,7 +309,7 @@ test('applyQuotaPool：windowPrompts 从 quotaConfig 取值（可覆盖 DEFAULTS
     assert.strictEqual(poolDefault.pools.glm.limit, core.DEFAULTS.quota.glm.windowPrompts,
       '默认走 DEFAULTS.quota，非函数内硬编码');
     assert.strictEqual(core.DEFAULTS.quota.glm.windowPrompts, 400,
-      'DEFAULTS glm 窗口对齐 executor-glm quotaWindowPrompts=400');
+      'DEFAULTS glm 窗口对齐 provider-resolver GLM quotaConfig.windowPrompts=400');
   } finally {
     cleanupTmpDir(dir);
   }
@@ -317,14 +317,48 @@ test('applyQuotaPool：windowPrompts 从 quotaConfig 取值（可覆盖 DEFAULTS
 
 // WP-191-1-impl-d：quotaCircuitThreshold 须高于 executor 软阈值（避免双重触发）
 test('applyQuotaPool：coordinator 硬阈值高于 executor 软阈值（口径对齐）', function () {
-  // 不变量：coordinator quotaCircuitThreshold（hard 兜底）> executor-glm quotaSoftThreshold（soft 降速）。
+  // 不变量：coordinator quotaCircuitThreshold（hard 兜底）> default executor glm 软阈值（soft 降速）。
   // 锁定该关系——若有人调低 coordinator 阈值或调高 executor 软阈值，双重触发会让 loop 抖动。
-  var glmExecutor = require('../../plugins/runtime/executor-glm');
+  // WP-188 重构：软阈值现来自 provider-resolver 的 GLM quotaConfig.softThreshold。
+  var providerResolver = require('../../plugins/runtime/provider-resolver');
+  var glmQuota = null;
+  for (var i = 0; i < providerResolver._DEFAULT_PROVIDERS.length; i++) {
+    if (providerResolver._DEFAULT_PROVIDERS[i].key === 'glm') {
+      glmQuota = providerResolver._DEFAULT_PROVIDERS[i].quota; break;
+    }
+  }
   var coordinatorThreshold = core.DEFAULTS.quotaCircuitThreshold;
-  var executorSoftThreshold = glmExecutor._DEFAULTS.quotaSoftThreshold;
+  var executorSoftThreshold = glmQuota.softThreshold;
   assert.ok(coordinatorThreshold > executorSoftThreshold,
     'coordinator 硬阈值 (' + coordinatorThreshold + ') 应 > executor 软阈值 (' +
     executorSoftThreshold + ')，避免双重计量触发抖动');
+});
+
+// WP-188 评审 P4：coordinator 高峰系数读用户 config（resolveGlmQuotaConfig）
+test('_resolveGlmQuotaConfig：注入含 glm quota 的 providers → 返回用户 quota（非 DEFAULT）', function () {
+  // 用户在 harness-config 自定义了 glm 高峰系数（5/4，非 DEFAULT 的 3/2）。
+  // resolveGlmQuotaConfig 须优先返回用户值，使 coordinator 高峰加权与 default executor 同源。
+  var custom = [
+    { key: 'glm', modelRegex: '^glm', quota: {
+      windowPrompts: 999, weeklyPrompts: 9999, softThreshold: 0.85,
+      peakStartHour: 10, peakEndHour: 14, peakCostFactor: 5, offpeakCostFactor: 4,
+      costModelRegex: '^glm-5',
+    } },
+  ];
+  var q = core._resolveGlmQuotaConfig(custom);
+  assert.ok(q, '应返回用户 glm quota');
+  assert.strictEqual(q.peakCostFactor, 5, '应是用户自定义 5，非 DEFAULT 的 3');
+  assert.strictEqual(q.windowPrompts, 999);
+});
+
+test('_resolveGlmQuotaConfig：注入的 providers 无 glm → 回退 DEFAULT_PROVIDERS（不崩）', function () {
+  // 测试环境无 .claude/config/harness-config.yaml → resolveGlmQuotaConfig 跳过 config 步骤，
+  // 回退 provider-resolver DEFAULT_PROVIDERS 的 glm quota（与 default executor 同源）。
+  var custom = [{ key: 'mimo', modelRegex: '^mimo' }];
+  var q = core._resolveGlmQuotaConfig(custom);
+  assert.ok(q, '无 glm 应回退 DEFAULT，不崩');
+  assert.strictEqual(q.peakCostFactor, 3, 'DEFAULT glm peakCostFactor=3');
+  assert.strictEqual(q.softThreshold, 0.9, 'DEFAULT glm softThreshold=0.9');
 });
 
 // ─────────────────────────────────────────────

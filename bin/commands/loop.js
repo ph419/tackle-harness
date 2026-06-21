@@ -41,9 +41,13 @@ var { StateStore } = require('../../plugins/runtime/state-store');
 var snapshotMod = require('../../plugins/runtime/loop-snapshot');
 var evaluatorMod = require('../../plugins/runtime/reflection-evaluator');
 var planReader = require('../../plugins/runtime/plan-reader');
-// provider 路由工厂（WP-185）：driver 只认 createExecutor(provider, opts)，
-// 新增 executor-glm.js 时只需在 loop-executor 注册，driver/engine 零改动。
+// executor 路由工厂（WP-185 / WP-188 重构）：driver 只认 createExecutor('local'|'default', opts)，
+// 新增 executor 只需在 loop-executor 注册一行，driver/engine 零改动。
 var loopExecutor = require('../../plugins/runtime/loop-executor');
+// 三层配置（env > harness-config.yaml > 默认）：读 loop.providers 段供 resolver 匹配。
+var ConfigManager = require('../../plugins/runtime/config-manager');
+// provider 解析器（WP-188 重构）：探测生效模型 + 匹配 provider profile，决定 default executor 特性。
+var providerResolver = require('../../plugins/runtime/provider-resolver');
 
 // 默认 plan.md 路径（与 plan-reader DEFAULT_PLAN_RELATIVE 一致）
 var DEFAULT_PLAN_REL = path.join('.claude', 'plan.md');
@@ -58,7 +62,7 @@ var DEFAULT_PLAN_REL = path.join('.claude', 'plan.md');
  * @param {string[]} argv
  * @returns {{planPath:string|null, executor:string, loopId:string|null,
  *           maxIters:number|null, stateDir:string|null, dryRun:boolean, force:boolean,
- *           error?:string}}
+ *           settingsPath:string|null, error?:string}}
  */
 function parseArgs(argv) {
   argv = argv || [];
@@ -70,6 +74,7 @@ function parseArgs(argv) {
     stateDir: null,
     dryRun: false,
     force: false,
+    settingsPath: null,
   };
   for (var i = 0; i < argv.length; i++) {
     var a = argv[i];
@@ -79,7 +84,13 @@ function parseArgs(argv) {
       out.loopId = a.slice('--loop-id='.length);
     } else if (a.indexOf('--max-iters=') === 0) {
       out.maxIters = parseInt(a.slice('--max-iters='.length), 10);
-    } else if (a.indexOf('--state-dir=') === 0) {      out.stateDir = a.slice('--state-dir='.length);
+    } else if (a.indexOf('--state-dir=') === 0) {
+      out.stateDir = a.slice('--state-dir='.length);
+    } else if (a.indexOf('--settings=') === 0) {
+      // 指定 claude settings JSON 文件路径（透传 claude CLI 原生 --settings flag）。
+      // 用途：动态切换 provider/套餐档位（智谱 glm-5.2-1m-max / mimo / deepseek 等），
+      // 把用户已放在 ~/.claude/ 下的多套配置文件喂给 claude，而非仅靠其默认发现机制。
+      out.settingsPath = a.slice('--settings='.length);
     } else if (a === '--dry-run') {
       out.dryRun = true;
     } else if (a === '--force') {
@@ -108,6 +119,8 @@ function parseArgs(argv) {
       out.loopId = null;
     }
   }
+  // --settings 的文件存在性校验留到 execute()：路径可能相对 projectRoot，
+  //   此处 projectRoot 未知，无法可靠解析。parseArgs 只负责纯解析。
   // --force：允许恢复已终态的 loop（覆盖终态保护，WP-192-5 ①）
   return out;
 }
@@ -472,7 +485,7 @@ module.exports = {
 
     if (!fs.existsSync(planPath)) {
       log(ctx.colorize('Error: plan file not found: ' + planPath, 'red'));
-      log('Usage: tackle loop <plan.md> [--executor=local|claude|glm] [--max-iters=N] [--loop-id=X]');
+      log('Usage: tackle loop <plan.md> [--executor=local|default] [--max-iters=N] [--loop-id=X] [--settings=<path>]');
       ctx.exit(2);
       return;
     }
@@ -482,6 +495,35 @@ module.exports = {
       log(ctx.colorize('Error: plan parse failed: ' + (parsed.error || 'no executable WPs'), 'red'));
       ctx.exit(2);
       return;
+    }
+
+    // 1.25) --settings 解析与存在性校验（透传 claude CLI 原生 --settings flag）。
+    //   在 chdir（隔离）前解析为绝对路径，与 planPath 处理一致——避免隔离后相对路径失效。
+    //   支持绝对/相对路径、含方括号/点等真实文件名（如 settings-glm-5.2[1m]max.json）；
+    //   不用 safePath.validateSafeName（它禁止方括号/点，会误拒真实文件名）。
+    //   回退安全：不指定 --settings 时 settingsResolved=null，executor 走原默认行为。
+    var settingsResolved = null;
+    if (args.settingsPath) {
+      settingsResolved = path.isAbsolute(args.settingsPath)
+        ? args.settingsPath
+        : path.resolve(projectRoot, args.settingsPath);
+      // P6（WP-188 评审）：路径逃逸检查——--settings 须在 projectRoot 内。
+      //   深度防御：claude --settings 本只读文件、且下方 existsSync 已能挡多数情况，
+      //   此处显式拦截是为给用户清晰错误信息，并拦掉 --settings=../../etc/x 这类明显异常路径。
+      var _settingsRel = path.relative(projectRoot, settingsResolved);
+      if (_settingsRel.startsWith('..') || path.isAbsolute(_settingsRel)) {
+        log(ctx.colorize('Error: --settings path must be within project root: ' +
+          args.settingsPath + ' (resolved: ' + settingsResolved + ')', 'red'));
+        log('Usage: tackle loop <plan.md> [--executor=local|default] [--settings=<path>]');
+        ctx.exit(2);
+        return;
+      }
+      if (!fs.existsSync(settingsResolved)) {
+        log(ctx.colorize('Error: settings file not found: ' + settingsResolved, 'red'));
+        log('Usage: tackle loop <plan.md> [--executor=local|default] [--settings=<path>]');
+        ctx.exit(2);
+        return;
+      }
     }
 
     // 1.5) per-loop 工作区隔离（WP-189）：
@@ -510,16 +552,68 @@ module.exports = {
     log(ctx.colorize('=== Agentic Loop Node Driver ===', 'cyan'));
     log('plan:      ' + planPath);
     log('executor:  ' + args.executor);
+    if (settingsResolved) {
+      log('settings:  ' + settingsResolved);
+    }
     log('goal WPs:  ' + parsed.goal.wpIds.join(', '));
     if (workspace.isolated) {
       log('loop-id:   ' + args.loopId + ' (isolated workspace: ' + wsRoot + ')');
     }
     log('');
 
-    // 2) 构造 executor（provider 路由层 loop-executor.createExecutor）
+    // 2) 构造 executor（executor 路由层 loop-executor.createExecutor）
+    //    WP-188 重构：default executor 按探测到的模型自动门控额度。local 是 mock 不需要解析。
+    //    对 default/claude：读 harness-config.yaml 的 loop.providers 段 → provider-resolver
+    //    探测生效模型 + 匹配 profile → 透传 {model, provider, quotaConfig} 给 executor。
+    //    回退安全：ConfigManager/resolver 任何环节失败 → providers 传 null，resolver 用内置
+    //    DEFAULT_PROVIDERS（开箱即用），不阻断 driver 启动。
+    var resolvedProvider = null;
+    if (args.executor !== 'local') {
+      // P7（WP-188 评审）：ConfigManager 读取与 resolveProvider 拆两个 try-catch，
+      //   各自记录来源（config 读失败 vs resolver 失败），便于诊断。降级行为不变。
+      var providersFromConfig = null;
+      try {
+        var cm = new ConfigManager();
+        var cfgAll = cm.getAll();
+        providersFromConfig = cfgAll && cfgAll.loop ? cfgAll.loop.providers : null;
+      } catch (_cfgErr) {
+        log(ctx.colorize('⚠ harness-config 读取失败（loop.providers 不可得，' +
+          'resolver 将用内置 DEFAULT_PROVIDERS）: ' +
+          ((_cfgErr && _cfgErr.message) ? _cfgErr.message : String(_cfgErr)), 'yellow'));
+        providersFromConfig = null;
+      }
+      try {
+        resolvedProvider = providerResolver.resolveProvider({
+          settingsPath: settingsResolved,
+          env: process.env,
+          providers: providersFromConfig || undefined,
+        });
+        log('provider:  ' + resolvedProvider.provider +
+          (resolvedProvider.model ? ' (model=' + resolvedProvider.model + ')' : '') +
+          (resolvedProvider.features.quotaAware ? ' [quota-aware]' : ''));
+      } catch (_resErr) {
+        // resolver 失败：降级纯透传（provider=unknown），不阻断 driver 启动
+        log(ctx.colorize('⚠ provider-resolver 失败，降级纯透传（provider=unknown）: ' +
+          ((_resErr && _resErr.message) ? _resErr.message : String(_resErr)) +
+          ((_resErr && _resErr.stack) ? '\n' + _resErr.stack : ''), 'yellow'));
+        resolvedProvider = null;
+      }
+    }
+
     var executor;
     try {
-      executor = loopExecutor.createExecutor(args.executor, { projectRoot: projectRoot });
+      // local executor 只需 projectRoot（mock）；default 额外接收 resolver 产物
+      if (args.executor === 'local') {
+        executor = loopExecutor.createExecutor('local', { projectRoot: projectRoot });
+      } else {
+        executor = loopExecutor.createExecutor(args.executor, {
+          projectRoot: projectRoot,
+          settingsPath: settingsResolved,
+          model: resolvedProvider ? resolvedProvider.model : null,
+          provider: resolvedProvider ? resolvedProvider.provider : 'unknown',
+          quotaConfig: resolvedProvider ? resolvedProvider.quotaConfig : null,
+        });
+      }
     } catch (e) {
       log(ctx.colorize('Error: ' + (e && e.message ? e.message : String(e)), 'red'));
       if (e && e.available) {

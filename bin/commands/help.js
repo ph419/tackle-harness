@@ -56,7 +56,9 @@ module.exports = {
     console.log('');
     console.log(ctx.colorize('loop', 'green') + ' 子命令用法（Agentic Loop Node Driver）：');
     console.log('  tackle loop <plan.md> [options]');
-    console.log('    --executor=local|claude|glm   provider 路由（默认 local）');
+    console.log('    --executor=local|default      executor 路由（默认 local；claude 为 default 别名）');
+    console.log('    --settings=<path>             指定 claude settings JSON（透传 claude --settings，');
+    console.log('                                   按文件内 model 自动探测 provider 并门控额度，如 mimo / glm-5.2）');
     console.log('    --loop-id=<name>              per-loop 隔离 + 支持 --loop-id 恢复');
     console.log('    --max-iters=<N>               最大迭代数（必须 >0）');
     console.log('    --state-dir=<dir>             隔离 state 目录（默认 .tackle-state）');

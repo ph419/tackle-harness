@@ -957,7 +957,8 @@ skill-agentic-loop 注册为 skill（version 1.1.0，config 含 plan_mode_requir
 
 ```
             ┌─────────────────────────────────────────────────────────┐
-            │  tackle loop <plan> --executor=local|claude|glm          │  CLI 入口
+            │  tackle loop <plan> --executor=local|default             │  CLI 入口
+            │    [--settings=<profile.json>]  ← provider/套餐档位切换  │
             │  tackle loop-server start|status|abort                   │
             └───────────────┬─────────────────────────┬───────────────┘
                             │                         │
@@ -976,18 +977,23 @@ skill-agentic-loop 注册为 skill（version 1.1.0，config 含 plan_mode_requir
             │ loop-    │  │ directive.  │            │ 只读聚合
             │ executor │  │ json sidecar│◀───────────┘ (不写各 loop state)
             │ (factory)│  └─────────────┘
-            └──┬──┬──┬─┘
-               │  │  │  三实现同一契约 { name, run(pendingAction), config }
-        ┌──────┘  │  └──────┐
-   ┌────▼───┐ ┌───▼────┐ ┌──▼─────┐
-   │local   │ │claude  │ │glm     │  executor-local(mock)/executor-claude/
-   │(mock)  │ │(CLI)   │ │(智谱)   │  executor-glm（复用 claude prompt+解析）
-   └────────┘ └────────┘ └────────┘
+            └──┬─────┬─┘
+               │     │   两实现同一契约 { name, run(pendingAction), config, quota }
+        ┌──────┘     └──────┐
+   ┌────▼───┐        ┌──────▼─────────────────────────────┐
+   │local   │        │default                              │  executor-local(mock)
+   │(mock)  │        │ (spawn claude CLI)                  │  executor-default（单一真实 executor）
+   └────────┘        │  ↑ provider-resolver 探测 model →   │
+                     │    匹配 glm/mimo/deepseek profile → │
+                     │    按 features.quotaAware 门控额度  │
+                     └─────────────────────────────────────┘
                             │
                             │  engine 全程零改动（硬约束 #1）
                             ▼
               plugins/core/provider-loop-engine（observe→think→act→reflect→decide）
 ```
+
+> **provider 解耦的演进（v0.3.10，WP-188 重构）**：早期版本把"真实 Anthropic / 智谱 GLM"做成两个独立 executor（`executor-claude.js` + `executor-glm.js`），provider 名直接焊死成 executor 名。重构后合并为**单一 `default` executor**——provider 不再是 executor 名，而是由 `provider-resolver`（`plugins/runtime/provider-resolver.js`）探测 `--settings` 文件或环境变量里的模型名，按 `harness-config.yaml` 的 `loop.providers` 规则匹配 profile，自动门控对应特性（目前仅智谱 GLM 的 5h 额度感知 + 高峰系数）。`executor-claude.js` 降级为 `executor-default` 复用的内部辅助库（prompt 模板 / checklist 解析 / 进展检测的源头），不再是注册的 executor。`--executor=claude` 保留为 `default` 的别名（向后兼容），`--executor=glm` 已删除（抛 `UNKNOWN_EXECUTOR`）。
 
 ### 11.3 硬约束（贯穿 M1~M5）
 
@@ -1004,29 +1010,31 @@ skill-agentic-loop 注册为 skill（version 1.1.0，config 含 plan_mode_requir
 | 组件 | 文件 | WP | 职责 |
 |------|------|----|------|
 | Node driver | `bin/commands/loop.js` | 184 | 解析 plan → engine init → `while(!terminal) step()` + 消费 pendingAction → executor.run → 回填 lastChecklist + 写 PROGRESS.md；exit code：achieved→0 / 其它→1 |
-| Executor 工厂 | `plugins/runtime/loop-executor.js` | 185 | provider 路由层，惰性 require 具体 executor，统一 `createExecutor(provider, opts)` |
+| Executor 工厂 | `plugins/runtime/loop-executor.js` | 185 | provider 路由层，惰性 require 具体 executor，统一 `createExecutor(provider, opts)`；REGISTRY = `{ local, default }`，`claude`→`default` 别名 |
 | local executor | `plugins/runtime/executor-local.js` | 185 | mock 固定回 passed，供单测与冒烟（100/h 限流） |
-| claude executor | `plugins/runtime/executor-claude.js` | 185/187 | spawn `claude -p --output-format json`，注入 WP 文档/mode/strategy/failingDrivers 构造 prompt，解析 `json:machine-readable` block，git HEAD 进展检测 |
-| glm executor | `plugins/runtime/executor-glm.js` | 188 | 复用 claude prompt+解析，spawn claude CLI 指向智谱 anthropic 兼容端点 + `--model`；5h 滚动窗口额度计数 + 高峰系数（3x/2x，仅 GLM-5.x） |
+| provider 解析器 | `plugins/runtime/provider-resolver.js` | 188 | 探测生效模型（settings 文件 model → env.ANTHROPIC_DEFAULT_*_MODEL → 环境变量）→ 匹配 `loop.providers` profile（modelRegex + 可选 baseUrlRegex）→ 产出 `{model, provider, quotaConfig, features.quotaAware}`，决定 default executor 启用哪些特性 |
+| default executor | `plugins/runtime/executor-default.js` | 188 | 单一真实 executor：spawn `claude -p --output-format json`，prompt/checklist 解析/进展检测复用 `executor-claude.js` 内部库；按 `features.quotaAware` 门控智谱式 5h 滚动窗口 + 高峰系数（仅探测到 glm 模型时启用，mimo/deepseek/unknown 纯透传） |
+| claude 内部辅助库 | `plugins/runtime/executor-claude.js` | 185/187 | prompt 模板 / `json:machine-readable` 解析 / `git status --porcelain` 工作树脏度进展检测的源头；由 executor-default require 复用，**不再**是注册的 executor（`--executor=claude` 是 `default` 别名） |
 | snapshot 口径修复 | `plugins/runtime/loop-snapshot.js` | 186 | `parseProgressMarkdown` 正则放宽到 `WP-?[\w-]+`（支持字母/混合编号）；`buildWorkPackages` checklist 完成态兜底（`lastChecklist.passed===true` 且 wpId 在 goal 内 → completed） |
 | per-loop 隔离 | `bin/commands/loop.js: resolveLoopWorkspace` | 189 | `--loop-id` 时建 `{stateDir}/{loopId}/` 隔离目录 + task.md 占位 + `process.chdir`，engine/snapshot/driverStore/PROGRESS.md 全部落隔离目录 |
 | coordinator 核心 | `plugins/runtime/loop-server-core.js` | 190 | 扫 per-loop 目录只读聚合（复用 `loop-coordinator.aggregateLoopStates`）、按 provider 分桶额度池、全局/额度熔断下发 `directive.json` |
 | coordinator CLI | `bin/commands/loop-server.js` | 190 | `start`（轮询守护+自动熔断）/`status`/`list`/`abort <loop-id>`；Ctrl+C 优雅退出 |
 
-### 11.5 provider 解耦验收锚点（M4）
+### 11.5 provider 解耦验收锚点（M4，WP-188 重构后）
 
-`--executor=claude` ↔ `--executor=glm` 切换时 driver/engine **零改动**，差异仅在：
+provider 不再焊死成 executor 名，而是由 `provider-resolver` 在运行时探测。无论切到哪个 provider，driver/engine **零改动**，差异仅在 `--settings` 指向的配置文件 + resolver 匹配到的 profile：
 
-- **claude**：直接 spawn claude binary，无额外环境注入
-- **glm**：spawn 同一 claude binary，但注入智谱 anthropic 兼容端点（`ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN`）+ `--model <glm-model>`
+- **单一 `default` executor**：spawn 同一 claude binary，端点 + 认证 + 模型全部由 `--settings` 文件携带（透传 claude CLI 原生 `--settings` flag），executor **不再注入** `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` 等环境变量（避免与 settings 冲突 + 泄漏风险）。
+- **模型探测顺序**（`provider-resolver.resolveEffectiveModel`，用户要求"配置文件优先于环境变量"）：`--settings` 文件的 `model` 字段 → 文件 `env.ANTHROPIC_DEFAULT_SONNET_MODEL`（fallback OPUS/HAIKU）→ 进程环境变量 `ANTHROPIC_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL`。三者都无 → provider=unknown（纯透传，不启用任何特性）。
+- **特性门控**：按 `harness-config.yaml` 的 `loop.providers` 规则（modelRegex + 可选 baseUrlRegex 二次确认防撞名）匹配 profile；有 quota 段（如智谱 GLM）→ `features.quotaAware=true`，default executor 自动启用 5h 额度感知 + 高峰系数；无 quota 段（mimo/deepseek/unknown）→ 纯透传。
 
-合规要点（`docs/wp/WP-188-research.md` §2.2）：智谱 Coding Plan 额度**仅限官方编码工具**（Claude Code / Cline / OpenCode / Cherry Studio）内使用。裸调智谱 API/SDK 不享套餐额度且有「非编程工具滥用」封号风险——所以 glm 走 claude CLI 中转（= 官方客户端 + 订阅人本人使用 = 合规 + 享额度）。禁止跨机共享 API Key。
+合规要点（`docs/wp/WP-188-research.md` §2.2）：智谱 Coding Plan 额度**仅限官方编码工具**（Claude Code / Cline / OpenCode / Cherry Studio）内使用。裸调智谱 API/SDK 不享套餐额度且有「非编程工具滥用」封号风险——所以 GLM 仍走 claude CLI 中转（= 官方客户端 + 订阅人本人使用 = 合规 + 享额度），只是改由 `--settings` 文件携带端点/认证，而非 executor 注入环境变量。禁止跨机共享 API Key。
 
 ### 11.6 多 loop 并行与额度统筹（M5）
 
 **隔离**：每个 `--loop-id=X` 的 loop 落在 `{stateDir}/X/` 独立目录（`.claude-state` / `PROGRESS.md` / `.executor` sidecar / `directive.json` 全隔离），物理规避单文件多进程并发写。
 
-**额度池**（`loop-server-core.applyQuotaPool`）：coordinator 按 provider 累加各 loop 的 iteration 消耗；glm 额外按高峰系数（高峰 3x / 非高峰 2x，仅 GLM-5.x；其它 glm 模型 1x）加权。默认软上限：claude 500/5h、glm 400/5h、local ∞；超 `quotaCircuitThreshold=0.95` 触发熔断。
+**额度池**（`loop-server-core.applyQuotaPool`）：coordinator 按 provider 累加各 loop 的 iteration 消耗；glm 额外按高峰系数（高峰 3x / 非高峰 2x，仅 GLM-5.x；其它 glm 模型 1x）加权——高峰系数换算复用 `executor-default._quotaCostFactor` + `provider-resolver` 的 GLM quotaConfig（同源无重复）。默认软上限：claude 500/5h、glm 400/5h、local ∞；超 `quotaCircuitThreshold=0.95` 触发熔断。
 
 **熔断**（两类策略，守护进程 `start` 时执行）：
 - **全局回退**：任一 loop `circuit_broken`/`aborted` → 对其它仍活跃 loop 下发 abort

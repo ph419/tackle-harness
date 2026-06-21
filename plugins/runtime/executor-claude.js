@@ -383,15 +383,26 @@ function buildPrompt(pendingAction, projectRoot) {
  * 且在 POSIX 上经 /proc/<pid>/cmdline 泄漏给同机其他用户。
  * prompt 改由 run() 写入子进程 stdin（claude -p 的标准 stdin 模式）。
  *
+ * settingsPath（可选）：透传 claude CLI 原生 `--settings <file-or-json>` flag，
+ * 加载额外的 settings JSON（与 claude 默认发现机制叠加）。用途：动态切换
+ * provider/套餐档位（如指定 ~/.claude/settings-glm-5.2[1m]max.json）。
+ * SECURITY：settingsPath 是文件**路径**，非 prompt/密钥本身——密钥在文件内由
+ * claude 自行读取，路径进 argv 安全（与 --allowedTools 等路径性质一致）。
+ *
  * @param {string[]} allowedTools
+ * @param {string} [settingsPath] 可选 claude settings 文件路径；非空时追加 --settings
  * @returns {string[]}
  */
-function buildClaudeArgs(allowedTools) {
-  return [
+function buildClaudeArgs(allowedTools, settingsPath) {
+  var args = [
     '-p', // --print：非交互，单次执行后退出
     '--output-format', 'json',
     '--allowedTools', allowedTools.join(','),
   ];
+  if (settingsPath) {
+    args.push('--settings', settingsPath);
+  }
+  return args;
 }
 
 // ---------------------------------------------------------------------------
@@ -409,6 +420,7 @@ function buildClaudeArgs(allowedTools) {
  * @param {string} [opts.model] 模型名占位（provider 零分支统一通道；claude 不显式 --model）
  * @param {string[]} [opts.allowedTools] 工具白名单
  * @param {string} [opts.projectRoot] 项目根覆盖（默认自动探测）
+ * @param {string} [opts.settingsPath] claude settings 文件路径（透传 --settings；切换 provider/套餐）
  * @returns {{ name:string, run:Function, config:object }}
  */
 function createExecutor(opts) {
@@ -422,6 +434,7 @@ function createExecutor(opts) {
     allowedTools: (opts.allowedTools && opts.allowedTools.length)
       ? opts.allowedTools.slice() : DEFAULTS.allowedTools.slice(),
     projectRoot: opts.projectRoot || resolveProjectRoot(),
+    settingsPath: opts.settingsPath || null,
   };
   var spawnFn = opts.spawnFn || spawn;
   // 进展检测 git status 执行函数（DI 注入，测试用；默认走 readWorktreeDirty 内 execFileSync）
@@ -453,7 +466,7 @@ function createExecutor(opts) {
 
     // 构造 prompt + args
     var prompt = buildPrompt(pendingAction, config.projectRoot);
-    var args = buildClaudeArgs(config.allowedTools);
+    var args = buildClaudeArgs(config.allowedTools, config.settingsPath);
 
     // spawn + 超时控制
     var stdoutBuf = '';

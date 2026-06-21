@@ -3,7 +3,7 @@
 > A plugin-based AI Agent workflow framework that provides task management, workflow orchestration, and role management for Claude Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.3.8-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.3.10-blue.svg)](https://github.com/ph419/tackle)
 
 **[中文文档](https://github.com/ph419/tackle/blob/main/README.md)**
 
@@ -106,7 +106,7 @@ tackle-harness build
 | `tackle-harness config` | Show/validate current configuration |
 | `tackle-harness list` | List all registered plugins |
 | `tackle-harness team-cleanup <name>` | Deterministically clean up residual Agent Teams directories (WP-179) |
-| `tackle-harness loop <plan> [--executor=local\|claude\|glm] [--loop-id=X] [--max-iters=N]` | Drive the Agentic Loop as a Node process (v0.3.4+, swappable providers) |
+| `tackle-harness loop <plan> [--executor=local\|default] [--settings=<path>] [--loop-id=X] [--max-iters=N]` | Drive the Agentic Loop as a Node process (v0.3.4+; v0.3.10 single default executor + auto model detection) |
 | `tackle-harness loop-server <start\|status\|list\|abort>` | Global loop coordinator daemon: aggregate multi-loop view, per-provider quota pool, global circuit break (v0.3.6+) |
 | `tackle-harness version` | Show version information |
 | `tackle-harness --root <path>` | Specify target project path (default: current directory) |
@@ -164,27 +164,44 @@ After P1 approval, `skill-agentic-loop` can take over P2↔P3 and enter an **aut
 
 #### Node Process Driver & Provider Decoupling (v0.3.4+)
 
-From v0.3.4 the loop carrier can be upgraded from "pseudo-code inside a Claude session" to a **Node process-level driver** (`tackle loop`), reducing Claude / any provider to a swappable stateless executor:
+From v0.3.4 the loop carrier can be upgraded from "pseudo-code inside a Claude session" to a **Node process-level driver** (`tackle loop`). From v0.3.10 the two real executors ("real Anthropic" / "Zhipu GLM") are merged into a **single `default` executor** — the provider is no longer hardwired to the executor name; instead `provider-resolver` probes the model name in the `--settings` file (or env vars) and auto-enables the matching features (currently only Zhipu GLM's 5h quota awareness + peak-hour factor):
 
 ```bash
 # Smoke test with the mock executor (no real model calls, free convergence check)
 tackle-harness loop test/fixtures/todo-cli-smoke.md --executor=local
 
-# Drive Claude Code to write code round by round
-tackle-harness loop docs/plan/my-plan.md --executor=claude
+# Drive Claude Code to write code round by round (claude is an alias for default)
+tackle-harness loop docs/plan/my-plan.md --executor=default
 
-# Zhipu GLM Coding Plan (enjoys subscription quota, via claude CLI relay, compliant)
-tackle-harness loop docs/plan/my-plan.md --executor=glm
+# Switch provider/plan tier on demand: --settings relays the native claude CLI flag
+#   Zhipu GLM (probed glm model → auto-enables 5h quota awareness + peak 3x/2x factor)
+tackle-harness loop docs/plan/my-plan.md --executor=default \
+  --settings=~/.claude/settings-glm-5.2[1m]max.json
+#   Xiaomi MiMo (probed mimo model → pure passthrough, no quota constraint)
+tackle-harness loop docs/plan/my-plan.md --executor=default \
+  --settings=~/.claude/mimo-v2.5-pro.json
+#   switch via env var (probes ANTHROPIC_MODEL → matches provider)
+ANTHROPIC_MODEL=glm-5.2 tackle-harness loop docs/plan/my-plan.md --executor=default
 
 # Parallel multi-loop: physically isolated state dirs
-tackle-harness loop planA.md --loop-id=A --executor=claude &
-tackle-harness loop planB.md --loop-id=B --executor=glm &
+tackle-harness loop planA.md --loop-id=A --executor=default &
+tackle-harness loop planB.md --loop-id=B --executor=default &
 ```
 
-- **Swappable provider**: switching `--executor=local|claude|glm` needs zero driver/engine changes — the decoupling point is the unified `executor.run()` contract (adding an executor is one REGISTRY line in `loop-executor`)
+- **Single executor + auto-detection**: `--executor=local|default` (`claude` is an alias for `default`). `provider-resolver` probes the effective model with priority `--settings file model → env.ANTHROPIC_DEFAULT_*_MODEL → env ANTHROPIC_MODEL`, matches the `loop.providers` rules in `harness-config.yaml`, and auto-enables features (Zhipu GLM → 5h quota awareness + peak factor; mimo/deepseek → pure passthrough). **BREAKING (v0.3.10)**: `--executor=glm` is removed — use `--executor=default --settings=<glm-profile.json>` instead
+- **Swappable config**: `--settings=<path>` relays the native claude CLI flag, feeding pre-prepared settings JSONs (different providers / plan tiers) to claude; matching rules and quota params are externalized in the `loop.providers` section of `harness-config.yaml` (built-in defaults: glm/mimo/deepseek when unconfigured), overridable via `HARNESS_LOOP__*` env vars
 - **Parallel multi-loop**: `--loop-id=X` creates a per-loop isolated directory, physically avoiding single-state-file concurrent-write data loss
 - **Global coordination**: the `tackle loop-server` daemon aggregates the multi-loop global view, pools quota per provider, and triggers global rollback on any circuit break
-- **GLM compliance**: the Zhipu subscription quota is only usable inside official coding tools, so the glm executor relays through the claude CLI (quota + compliant); never share API keys across machines
+- **GLM compliance**: the Zhipu subscription quota is only usable inside official coding tools, so GLM relays through the claude CLI (quota + compliant); never share API keys across machines
+
+#### Migrating from 0.3.8 to 0.3.10 (required for GLM users)
+
+Zhipu GLM moves from a "dedicated executor" to "single default executor + auto-detection". Migration is 4 steps:
+
+1. **Rename the executor**: `--executor=glm` → `--executor=default --settings=<glm-profile.json>` (`--executor=glm` now throws `UNKNOWN_EXECUTOR`)
+2. **Endpoint + auth now carried by the settings file**: the old glm executor relied on the `ZHIPU_API_KEY` env var (it hardcoded `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN` before spawn). From 0.3.10 the executor **injects no env vars** — endpoint and auth are fully delegated to the settings file
+3. **Generate / place the settings file**: drop a settings JSON under `~/.claude/` pointing at the Zhipu anthropic-compatible endpoint (e.g. `settings-glm-5.2[1m]max.json`), containing `model` (provider-resolver matches the glm rule from it) + an `env` block carrying the endpoint and credentials. One file per plan tier; switch with `--settings=` (you can also keep settings files for other providers like mimo/deepseek alongside it)
+4. **`--executor=claude` still works**: retained as an alias for `default` (back-compat with v0.3.4–0.3.8 scripts), but explicit `--executor=default` is recommended
 
 > Full design in [`docs/reports/agentic-loop-design.md`](docs/reports/agentic-loop-design.md) §11; build blueprints in [`docs/plan/agentic-loop-node-driver.md`](docs/plan/agentic-loop-node-driver.md) and [`docs/plan/agentic-loop-node-driver-m4m5.md`](docs/plan/agentic-loop-node-driver-m4m5.md).
 

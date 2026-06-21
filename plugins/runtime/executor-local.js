@@ -158,6 +158,14 @@ function createExecutor(opts) {
     name: 'local',
     run: run,
     config: config,
+    // quota 视图（mock 不计量）：与 executor-default 的 quotaAware=false 视图同构，
+    // 统一 { name, run, config, quota } 契约——让消费者无分支读 executor.quota.*，
+    // 各方法恒返回 0（local 是 mock，无真实额度概念）。
+    quota: {
+      windowUsed: function () { return 0; },
+      weekUsed: function () { return 0; },
+      windowRatio: function () { return 0; },
+    },
   };
 }
 

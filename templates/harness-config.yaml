@@ -213,6 +213,54 @@ memory:
       max_entries: 100
 
 # ---------------------------------------------------------------------------
+# Agentic Loop executor / provider 解析配置
+# 控制 `tackle loop --executor=default` 的模型探测与 provider 特性门控。
+#
+# provider-resolver 解析"当前生效模型"的优先级：
+#   1. --settings 文件的 model 字段
+#   2. --settings 文件的 env.ANTHROPIC_DEFAULT_SONNET_MODEL（fallback OPUS/HAIKU）
+#   3. 进程环境变量 ANTHROPIC_MODEL / ANTHROPIC_DEFAULT_SONNET_MODEL
+#   都拿不到 → provider=unknown（纯透传，不启用任何特性）。
+#
+# 匹配规则：按 providers 声明顺序，第一个 modelRegex 命中的胜出。
+#   baseUrlRegex（可选）做二次确认：若 --settings 文件携带了 ANTHROPIC_BASE_URL，
+#   且该 URL 不匹配 baseUrlRegex，则视为模型名撞车，跳过该 profile 继续找下一个。
+#
+# quota 段（可选）：启用智谱式 5h 滚动窗口额度感知 + 高峰系数。
+#   只有需要本地计量的 provider（如智谱 GLM Coding Plan）才配；mimo/deepseek 等不配。
+#   接近 softThreshold 时 default executor 降速返回 quota_exhausted（不 sleep，
+#   交由 driver 发散检测兜底）。额度状态进程内存，不跨 loop 共享（跨 loop 归 loop-server）。
+#
+# 注意：此处配置仅作用于 default executor 的本地额度感知；loop-server coordinator
+#   有独立的 per-provider 额度池配置（loop-server-core.js），两者解耦。
+# ---------------------------------------------------------------------------
+loop:
+  providers:
+    # 智谱 GLM（享 Coding Plan 套餐额度，走 claude CLI 中转合规）
+    - key: glm
+      # 匹配 GLM-5.x 系列 + 4.6/4.7/4.5-air（套餐内可用模型）
+      modelRegex: "^glm[-_]?5(?!\d)|^glm[-_]?(4\.[67]|4\.5-air)"
+      # 智谱 Anthropic 兼容端点（防 mimo/deepseek 等同名模型撞车）
+      baseUrlRegex: "open\.bigmodel\.cn"
+      quota:
+        windowPrompts: 400            # 5h 窗口 prompts 软上限（Pro 档基准）
+        weeklyPrompts: 2000           # 周 prompts 软上限
+        softThreshold: 0.9            # 达到 quota*threshold 开始降速
+        peakStartHour: 14             # 高峰起（UTC+8 小时）
+        peakEndHour: 18               # 高峰止（UTC+8 小时）
+        peakCostFactor: 3             # 高峰时段 GLM-5.x 消耗系数
+        offpeakCostFactor: 2          # 非高峰 GLM-5.x 消耗系数
+        costModelRegex: "^glm[-_]?5(?!\d)"  # 仅 5.x 受高峰系数；4.6 等按 1x
+
+    # 小米 MiMo（无套餐额度约束，纯透传）
+    - key: mimo
+      modelRegex: "^mimo"
+
+    # DeepSeek（无套餐额度约束，纯透传）
+    - key: deepseek
+      modelRegex: "^deepseek"
+
+# ---------------------------------------------------------------------------
 # MCP 协议配置
 # 定义 Model Context Protocol 服务器配置
 # ---------------------------------------------------------------------------

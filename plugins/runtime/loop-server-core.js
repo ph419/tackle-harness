@@ -39,13 +39,49 @@ var coordinator = require('./loop-coordinator');
 var { StateStore } = require('./state-store');
 var safePath = require('./safe-path');
 
-// 复用 executor-glm 的高峰系数换算（额度池对 glm 按高峰加权）
-var glmQuota = null;
+// 复用 executor-default 的高峰系数换算（额度池对 glm 按高峰加权）。
+// WP-188 重构：executor-glm 已删除，额度逻辑搬到 executor-default；
+//   coordinator 从 provider-resolver 的 DEFAULT_PROVIDERS 取 glm quotaConfig 传入。
+var defaultExecutor = null;
+var providerResolver = null;
 try {
-  glmQuota = require('./executor-glm');
+  defaultExecutor = require('./executor-default');
+  providerResolver = require('./provider-resolver');
 } catch (_e) {
-  glmQuota = null;
+  defaultExecutor = null;
+  providerResolver = null;
 }
+
+// glm quotaConfig（WP-188 评审 P4）：优先读用户 harness-config.yaml 的 loop.providers
+//   的 glm profile quota，使 coordinator 高峰加权与 default executor 同源；用户 config 无
+//   glm → 回退 provider-resolver DEFAULT_PROVIDERS。daemon 加载时读一次（config 改动需重启）。
+function findGlmQuotaIn(providers) {
+  if (!Array.isArray(providers)) return null;
+  for (var i = 0; i < providers.length; i++) {
+    var p = providers[i];
+    if (p && p.key === 'glm' && p.quota) return p.quota;
+  }
+  return null;
+}
+
+function resolveGlmQuotaConfig(providers) {
+  // 1) 调用方显式传入的 providers 优先（测试注入 / 已读 config）
+  var q = findGlmQuotaIn(providers);
+  if (q) return q;
+  // 2) 读用户 harness-config.yaml 的 loop.providers（与 loop.js 同一读取模式；daemon 加载时一次）
+  try {
+    var ConfigManager = require('./config-manager');
+    var cfg = new ConfigManager().getAll();
+    q = findGlmQuotaIn(cfg && cfg.loop ? cfg.loop.providers : null);
+    if (q) return q;
+  } catch (_e) {
+    // config 读失败 → 降级 DEFAULT（不阻断 daemon）
+  }
+  // 3) 回退 provider-resolver DEFAULT_PROVIDERS（开箱即用，与 default executor 同源）
+  return findGlmQuotaIn(providerResolver && providerResolver._DEFAULT_PROVIDERS);
+}
+
+var GLM_QUOTA_CONFIG = resolveGlmQuotaConfig();
 
 // ---------------------------------------------------------------------------
 // 默认配置
@@ -381,14 +417,15 @@ function applyQuotaPool(globalView, quotaConfig, nowFn) {
     var iters = summary.iteration || 0;
     if (!(provider in used)) used[provider] = 0;
     // glm 高峰系数加权
-    if (provider === 'glm' && glmQuota && typeof glmQuota._quotaCostFactor === 'function') {
+    if (provider === 'glm' && defaultExecutor &&
+        typeof defaultExecutor._quotaCostFactor === 'function' && GLM_QUOTA_CONFIG) {
       // B20: per-loop model from .executor sidecar (e.g. 'glm-5.2'). Falls back
       // to 'glm-5.2' (the current default GLM model) when the sidecar doesn't
       // record a model. The previous hardcoded 'glm-4.6' always yielded a 1x
       // factor, undercounting GLM-5.x loops by 2-3x and thus underestimating
       // circuit-breaker thresholds.
       var model = models[lid] || 'glm-5.2';
-      var factor = glmQuota._quotaCostFactor(model, nowFn);
+      var factor = defaultExecutor._quotaCostFactor(model, GLM_QUOTA_CONFIG, nowFn);
       iters = iters * factor;
     }
     used[provider] += iters;
@@ -717,6 +754,7 @@ module.exports = {
   // 工具（测试用）
   _readJsonSafe: readJsonSafe,
   _writeJsonSafe: writeJsonSafe,
+  _resolveGlmQuotaConfig: resolveGlmQuotaConfig,
   // PID 文件（WP-191-1-impl-c stop 子命令）
   PID_FILENAME: PID_FILENAME,
   pidFilePath: pidFilePath,

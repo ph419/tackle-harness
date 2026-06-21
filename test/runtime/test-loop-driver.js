@@ -118,6 +118,19 @@ test('parseArgs 支持 --loop-id / --state-dir / --dry-run', function () {
   assert.strictEqual(a.dryRun, true);
 });
 
+test('parseArgs 解析 --settings 路径（含方括号/点等真实文件名）', function () {
+  var a = loopCmd._parseArgs(['plan.md', '--settings=settings-glm-5.2[1m]max.json']);
+  assert.strictEqual(a.settingsPath, 'settings-glm-5.2[1m]max.json');
+  // 绝对路径
+  var b = loopCmd._parseArgs(['plan.md', '--settings=C:/Users/me/.claude/mimo.json']);
+  assert.strictEqual(b.settingsPath, 'C:/Users/me/.claude/mimo.json');
+});
+
+test('parseArgs 未传 --settings 时 settingsPath=null（回退安全）', function () {
+  var a = loopCmd._parseArgs(['plan.md']);
+  assert.strictEqual(a.settingsPath, null);
+});
+
 // ─────────────────────────────────────────────
 // Section 2: 端到端收敛（M1 验收核心）
 // ─────────────────────────────────────────────
@@ -256,6 +269,21 @@ test('未知 executor → exit code = 2', async function () {
     var h = makeCtx(env.dir, [env.planPath, '--executor=nonexistent']);
     await loopCmd.execute(h.ctx);
     assert.strictEqual(h.exitCode.value, 2);
+  } finally {
+    env.restore();
+  }
+});
+
+test('execute：--settings 路径逃逸 projectRoot → exit 2（WP-188 评审 P6 深度防御）', async function () {
+  var env = setupEnv(1);
+  try {
+    // 相对 projectRoot（=env.dir）逃逸：../../etc/x.json 解析到 dir 之外
+    var h = makeCtx(env.dir, [env.planPath, '--executor=local', '--settings=../../etc/secret.json']);
+    await loopCmd.execute(h.ctx);
+    assert.strictEqual(h.exitCode.value, 2, '逃逸路径应 exit 2');
+    var combined = h.logs.join('\n');
+    assert.ok(combined.indexOf('within project root') !== -1,
+      '应被路径逃逸检查拦截（而非 file not found）');
   } finally {
     env.restore();
   }
@@ -683,22 +711,27 @@ test('_writeExecutorSidecar：未传 model 时不写 model 字段（向后兼容
   }
 });
 
-test('三种 executor 都暴露 config.model（provider 零分支前提）', function () {
+test('所有 executor 都暴露 config.model 字段（统一通道前提）', function () {
   // 不变量 #3：driver 用 executor.config.model 统一通道取 model，无 if(provider) 分支。
-  // 前提是所有 executor 都暴露 config.model。本测试锁定该契约——
+  // 前提是所有 executor 都暴露 config.model 字段。本测试锁定该契约——
   // 新增 executor 时若漏暴露 config.model，driver 取到 undefined，coordinator 回退默认值。
+  // 注：default executor 的 model 可为 null（探测不到模型时，纯透传场景）；
+  //     local executor 的 model 是占位字符串。本测锁定"字段存在"，非"非空"。
   var loopExecutor = require('../../plugins/runtime/loop-executor');
   var providers = loopExecutor.listProviders();
   assert.ok(providers.indexOf('local') !== -1);
-  assert.ok(providers.indexOf('claude') !== -1);
-  assert.ok(providers.indexOf('glm') !== -1);
+  assert.ok(providers.indexOf('default') !== -1);
+  assert.strictEqual(providers.indexOf('glm'), -1, 'glm executor 已删除');
   for (var i = 0; i < providers.length; i++) {
     var exec = loopExecutor.createExecutor(providers[i], { projectRoot: __dirname });
-    assert.ok(exec && exec.config && typeof exec.config.model === 'string',
-      providers[i] + ' executor 应暴露 config.model（provider 零分支统一通道）');
-    assert.ok(exec.config.model.length > 0,
-      providers[i] + ' executor 的 config.model 不应为空串');
+    assert.ok(exec && exec.config, providers[i] + ' 应暴露 config');
+    assert.ok('model' in exec.config,
+      providers[i] + ' executor 应暴露 config.model 字段（统一通道）');
   }
+  // local 的 model 是非空占位（mock）；default 无探测结果时为 null（合法）
+  var local = loopExecutor.createExecutor('local');
+  assert.ok(typeof local.config.model === 'string' && local.config.model.length > 0,
+    'local model 应为非空占位');
 });
 
 // ─────────────────────────────────────────────
@@ -1133,7 +1166,7 @@ test('help：输出含 loop / loop-server 子命令用法', function () {
   }
   var combined = out.join('\n');
   // loop 子命令用法
-  assert.ok(combined.indexOf('--executor=local|claude|glm') !== -1, 'help 应含 loop --executor 用法');
+  assert.ok(combined.indexOf('--executor=local|default') !== -1, 'help 应含 loop --executor 用法');
   assert.ok(combined.indexOf('--loop-id=') !== -1, 'help 应含 loop --loop-id 用法');
   assert.ok(combined.indexOf('--max-iters=') !== -1, 'help 应含 loop --max-iters 用法');
   assert.ok(combined.indexOf('--force') !== -1, 'help 应含 loop --force 用法');
@@ -1143,4 +1176,144 @@ test('help：输出含 loop / loop-server 子命令用法', function () {
   assert.ok(combined.indexOf('loop-server status') !== -1, 'help 应含 loop-server status');
   assert.ok(combined.indexOf('loop-server list') !== -1, 'help 应含 loop-server list');
   assert.ok(combined.indexOf('loop-server abort') !== -1, 'help 应含 loop-server abort');
+});
+
+// --settings 透传：execute 把 settingsPath 解析为绝对路径并透传到 createExecutor opts（default 路径）
+test('execute：--settings 透传到 default executor 的 opts.settingsPath + 探测 model', async function () {
+  var projectRoot = makeTmpDir();
+  fs.mkdirSync(path.join(projectRoot, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'task.md'), '# Task\n', 'utf8');
+  fs.writeFileSync(path.join(projectRoot, '.claude', 'plan.md'), makePlan(1), 'utf8');
+  // 创建一个真实存在的 settings 文件，含 model 字段（供 provider-resolver 探测）
+  var settingsFile = path.join(projectRoot, '.claude', 'glm.json');
+  fs.writeFileSync(settingsFile, JSON.stringify({ model: 'glm-5.2' }), 'utf8');
+  var planPath = path.join(projectRoot, '.claude', 'plan.md');
+  var origCwd = process.cwd();
+
+  // 用 spy 拦截 createExecutor：捕获 opts，但返回 local executor（避免真 spawn claude）
+  var realCreate = loopCmd._loopExecutor.createExecutor;
+  var capturedProvider = null;
+  var capturedOpts = null;
+  loopCmd._loopExecutor.createExecutor = function (provider, opts) {
+    capturedProvider = provider;
+    capturedOpts = opts;
+    return realCreate.call(loopCmd._loopExecutor, 'local', { projectRoot: opts.projectRoot });
+  };
+
+  try {
+    process.chdir(projectRoot);
+    var h = makeCtx(projectRoot, [planPath, '--executor=default', '--settings=' + settingsFile]);
+    await loopCmd.execute(h.ctx);
+    assert.strictEqual(capturedProvider, 'default', '应路由到 default');
+    assert.ok(capturedOpts, 'createExecutor 应被调用');
+    assert.strictEqual(capturedOpts.settingsPath, settingsFile, '应透传 settingsPath');
+    assert.strictEqual(capturedOpts.model, 'glm-5.2', '应透传探测到的 model');
+    assert.strictEqual(capturedOpts.provider, 'glm', '应透传探测到的 provider');
+    assert.ok(capturedOpts.quotaConfig, 'glm 模型应带 quotaConfig');
+  } finally {
+    loopCmd._loopExecutor.createExecutor = realCreate;
+    process.chdir(origCwd);
+    cleanupTmpDir(projectRoot);
+  }
+});
+
+// execute 日志含 provider/model 探测结果
+// 注：本测只校验探测日志，不应真 spawn claude（无 claude CLI 时行为不定、且单测不应秒级耗时）。
+//   故用 spy 拦截 createExecutor 返回 local executor（与上面 --settings 透传测试同款手法）。
+test('execute：default executor 日志输出 provider/model 探测结果', async function () {
+  var projectRoot = makeTmpDir();
+  fs.mkdirSync(path.join(projectRoot, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'task.md'), '# Task\n', 'utf8');
+  fs.writeFileSync(path.join(projectRoot, '.claude', 'plan.md'), makePlan(1), 'utf8');
+  var settingsFile = path.join(projectRoot, '.claude', 'mimo.json');
+  fs.writeFileSync(settingsFile, JSON.stringify({ model: 'mimo-v2.5-pro' }), 'utf8');
+  var planPath = path.join(projectRoot, '.claude', 'plan.md');
+  var origCwd = process.cwd();
+
+  var realCreate = loopCmd._loopExecutor.createExecutor;
+  loopCmd._loopExecutor.createExecutor = function (provider, opts) {
+    return realCreate.call(loopCmd._loopExecutor, 'local', { projectRoot: opts.projectRoot });
+  };
+
+  try {
+    process.chdir(projectRoot);
+    var h = makeCtx(projectRoot, [planPath, '--executor=default', '--settings=' + settingsFile]);
+    await loopCmd.execute(h.ctx);
+    var combined = h.logs.join('\n');
+    assert.ok(combined.indexOf('provider:  mimo') !== -1, '日志应含探测到的 provider');
+    assert.ok(combined.indexOf('model=mimo-v2.5-pro') !== -1, '日志应含探测到的 model');
+  } finally {
+    loopCmd._loopExecutor.createExecutor = realCreate;
+    process.chdir(origCwd);
+    cleanupTmpDir(projectRoot);
+  }
+});
+
+// --settings 不存在 → exit 2（execute 层存在性校验）
+test('execute：--settings 指向不存在的文件 → exit 2', async function () {
+  var projectRoot = makeTmpDir();
+  fs.mkdirSync(path.join(projectRoot, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'task.md'), '# Task\n', 'utf8');
+  fs.writeFileSync(path.join(projectRoot, '.claude', 'plan.md'), makePlan(1), 'utf8');
+  var planPath = path.join(projectRoot, '.claude', 'plan.md');
+  var origCwd = process.cwd();
+  try {
+    process.chdir(projectRoot);
+    var h = makeCtx(projectRoot, [planPath, '--executor=local', '--settings=nope.json']);
+    await loopCmd.execute(h.ctx);
+    assert.strictEqual(h.exitCode.value, 2, 'settings 不存在应 exit 2');
+    assert.ok(h.logs.join('\n').indexOf('settings file not found') !== -1, '应提示 settings 不存在');
+  } finally {
+    process.chdir(origCwd);
+    cleanupTmpDir(projectRoot);
+  }
+});
+
+// 缺口-3（WP-193-1-audit §7 缺口-3）：driver 层降级韧性。
+//   loop.js:574-601 双重 try-catch 保护：无 harness-config.yaml（ConfigManager.getAll 返回 {}
+//   无 loop.providers 段 → providersFromConfig=null）+ 无 --settings + 无模型环境变量时，
+//   resolver 用 DEFAULT_PROVIDERS 但探测不到 model → 降级 provider=unknown + model=null +
+//   quotaConfig=null。driver 应正常构造 executor 启动（不崩），把这些降级值透传给 executor。
+//   现有 --settings 测试都带 model（探测成功），未覆盖"全探测失败 driver 不崩"端到端语义。
+//   注：loop.js ConfigManager catch 分支由 ConfigManager 内部吞 fs 错误（config-manager.js:221-224）
+//   前置保护、真实路径不可达；此处锁定的是同源降级语义（探测全空 → unknown 纯透传，driver 不崩）。
+test('execute：无 config 无 settings 无模型 env → driver 降级 unknown 不崩', async function () {
+  var projectRoot = makeTmpDir();
+  fs.mkdirSync(path.join(projectRoot, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'task.md'), '# Task\n', 'utf8');
+  fs.writeFileSync(path.join(projectRoot, '.claude', 'plan.md'), makePlan(1), 'utf8');
+  var planPath = path.join(projectRoot, '.claude', 'plan.md');
+  var origCwd = process.cwd();
+  // 清掉可能干扰探测的模型环境变量（保证真的全空降级）
+  var savedModel = process.env.ANTHROPIC_MODEL;
+  var savedSonnet = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+  delete process.env.ANTHROPIC_MODEL;
+  delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+
+  var realCreate = loopCmd._loopExecutor.createExecutor;
+  var capturedOpts = null;
+  loopCmd._loopExecutor.createExecutor = function (provider, opts) {
+    capturedOpts = opts;
+    return realCreate.call(loopCmd._loopExecutor, 'local', { projectRoot: opts.projectRoot });
+  };
+
+  try {
+    process.chdir(projectRoot);
+    var h = makeCtx(projectRoot, [planPath, '--executor=default']);
+    await loopCmd.execute(h.ctx);
+    // driver 正常启动未崩：capturedOpts 被填充 + 无降级崩溃日志
+    assert.ok(capturedOpts, 'createExecutor 应被调用（driver 未崩）');
+    assert.strictEqual(capturedOpts.model, null, '全探测失败应降级 model=null');
+    assert.strictEqual(capturedOpts.provider, 'unknown', '应降级 provider=unknown');
+    assert.strictEqual(capturedOpts.quotaConfig, null, 'unknown 无 quotaConfig');
+    assert.strictEqual(h.exitCode.value, 0, '降级应仍正常收敛 exit 0');
+    var combined = h.logs.join('\n');
+    assert.ok(combined.indexOf('provider:  unknown') !== -1, '日志应记录降级 unknown');
+  } finally {
+    loopCmd._loopExecutor.createExecutor = realCreate;
+    if (savedModel !== undefined) process.env.ANTHROPIC_MODEL = savedModel;
+    if (savedSonnet !== undefined) process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = savedSonnet;
+    process.chdir(origCwd);
+    cleanupTmpDir(projectRoot);
+  }
 });

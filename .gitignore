@@ -84,3 +84,8 @@ id_rsa*
 # Archives
 *.tar.gz
 *.zip
+
+# Windows：误把 stdout/stderr 重定向到保留设备名 `nul`（如 `... > nul`）时，
+# 当工作目录恰好存在同名文件会意外落盘一个名为 nul 的真实文件。
+# 忽略它，避免此类误产物混入 git。
+/nul
