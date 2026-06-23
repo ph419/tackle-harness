@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.12] - 2026-06-23
+
+### Changed
+
+- **skill-agent-dispatcher v1.2.0 → v1.3.0**：对齐 Claude Code harness 升级后的 implicit single-team 模式。移除已失效的 `TeamCreate`/`TeamDelete` 显式编排步骤与 `Agent(team_name=...)` 参数；`team_name` 重定义为批次逻辑标签；`cleanup-reference` 的 `Step 7d/7e` 改用 `team-cleanup` CLI 并纠正旧描述。协作能力（并行 spawn + SendMessage + 共享 Task List）未丢失，仍由 implicit session team 提供
+- 同步更新 `skill-agentic-loop`、`skill-workflow-orchestrator`、`skill-completion-report`、`skill-team-cleanup`、`roles-reference` 文档措辞，统一为 implicit session team 现状
+- README（中/英）版本徽章同步至当前发布版本（修正 0.3.11 发布时遗漏的徽章更新）
+
+### Fixed
+
+- `test/integration/test-executor-claude-integration.js`：真实 claude binary 冒烟用例在第三方端点 TTFT 偏高时，将 `timeout` 从硬失败降级为 `t.skip()`（链路本身未损坏，仅环境慢无法判定）；`timeoutMs` 60s → 120s、node `timeout` 90s → 150s
+
 ## [0.3.11] - 2026-06-21
 
 ### Fixed
