@@ -6,7 +6,7 @@ If you discover a security vulnerability in Tackle Harness, please report it res
 
 ### How to Report
 
-1. **GitHub Security Advisory** (Preferred): Use [GitHub's private vulnerability reporting](https://github.com/ph419/tackle/security/advisories/new) to submit your findings.
+1. **GitHub Security Advisory** (Preferred): Use [GitHub's private vulnerability reporting](https://github.com/ph419/tackle-harness/security/advisories/new) to submit your findings.
 2. **Email**: If GitHub Security Advisory is not available, send a detailed report to the project maintainers.
 
 ### What to Include

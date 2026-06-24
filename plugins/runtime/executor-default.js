@@ -180,6 +180,23 @@ function buildDefaultArgs(allowedTools, settingsPath, model) {
   return args;
 }
 
+/**
+ * 把 executor 打点 trace 附到 CheckResult 上（WP-196-1-impl，纯观测）。
+ * 下划线前缀字段 `_executorTrace` 表示内部观测，reflection-evaluator 不消费；
+ * driver 读取后聚合到 round record。全程 try/catch 降级——trace 缺失不影响 checkResult。
+ * @param {object} checkResult
+ * @param {object} trace { spawnMs, exitCode, timedOut, rateLimited, tokenUsage }
+ * @returns {object} 原 checkResult（附 _executorTrace）
+ */
+function _withTrace(checkResult, trace) {
+  try {
+    if (checkResult && typeof checkResult === 'object') {
+      checkResult._executorTrace = trace || null;
+    }
+  } catch (_e) { /* 降级：观测失败绝不阻断 */ }
+  return checkResult;
+}
+
 // ---------------------------------------------------------------------------
 // 公开 API
 // ---------------------------------------------------------------------------
@@ -245,17 +262,26 @@ function createExecutor(opts) {
     pendingAction = pendingAction || {};
     var wpId = pendingAction.wpId || 'unknown';
 
+    // WP-196-1-impl：executor.run 打点（仅观测，不引入 provider 分支）。
+    //   采集 {spawnMs, exitCode, timedOut, rateLimited} 附在 checkResult._executorTrace；
+    //   全程容错，缺失字段降级为 null。tokenUsage 当前不可获取（claude CLI 不稳定暴露），留 null。
+    var trace = { spawnMs: null, exitCode: null, timedOut: false, rateLimited: false, tokenUsage: null };
+    var spawnStartMs = Date.now();
+
     // 限流（与 executor-claude 一致，所有 provider 共用）
     var now = Date.now();
     callTimestamps = callTimestamps.filter(function (ts) { return now - ts < HOUR_MS; });
     if (callTimestamps.length >= config.rateLimitPerHour) {
-      return buildFailedChecklist(wpId, 'rate_limited');
+      trace.rateLimited = true;
+      trace.spawnMs = Date.now() - spawnStartMs;
+      return _withTrace(buildFailedChecklist(wpId, 'rate_limited'), trace);
     }
     callTimestamps.push(now);
 
     // 额度前置检查（仅 quotaAware）：接近软上限则降速返回，不 spawn
     if (quotaAware && quota.windowRatio() >= config.quotaConfig.softThreshold) {
-      return buildFailedChecklist(wpId, 'quota_exhausted');
+      trace.spawnMs = Date.now() - spawnStartMs;
+      return _withTrace(buildFailedChecklist(wpId, 'quota_exhausted'), trace);
     }
 
     // 进展检测基线（WP-191-2-impl，复用 executor-claude 的工作树脏度判定）
@@ -281,7 +307,8 @@ function createExecutor(opts) {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     } catch (e) {
-      return buildFailedChecklist(wpId, 'spawn_failed: ' + ((e && e.code) || (e && e.message) || String(e)));
+      trace.spawnMs = Date.now() - spawnStartMs;
+      return _withTrace(buildFailedChecklist(wpId, 'spawn_failed: ' + ((e && e.code) || (e && e.message) || String(e))), trace);
     }
 
     // prompt 走 stdin（S1，与 executor-claude 一致）
@@ -319,7 +346,9 @@ function createExecutor(opts) {
         clearTimeout(timer);
         // spawn_error 路径不计额度（本地未真打到端点）。标记 quotaRecorded 防重复计。
         quotaRecorded = true;
-        resolve(buildFailedChecklist(wpId, 'spawn_error: ' + (err && err.message ? err.message : String(err))));
+        trace.spawnMs = Date.now() - spawnStartMs;
+        trace.exitCode = null;
+        resolve(_withTrace(buildFailedChecklist(wpId, 'spawn_error: ' + (err && err.message ? err.message : String(err))), trace));
       });
 
       child.on('close', function (code) {
@@ -332,8 +361,12 @@ function createExecutor(opts) {
           quotaRecorded = true;
         }
 
+        trace.spawnMs = Date.now() - spawnStartMs;
+        trace.exitCode = (typeof code === 'number') ? code : null;
+        trace.timedOut = timedOut === true;
+
         if (timedOut) {
-          resolve(buildFailedChecklist(wpId, 'timeout'));
+          resolve(_withTrace(buildFailedChecklist(wpId, 'timeout'), trace));
           return;
         }
         // 提取 text → 解析 checklist block（复用 executor-claude 解析）
@@ -346,10 +379,10 @@ function createExecutor(opts) {
         applyProgressDetection(chk, dirtyBefore, dirtyAfter);
         // 非 0 退出码且无解析结果 → 失败
         if (code !== 0 && !raw) {
-          resolve(buildFailedChecklist(wpId, 'claude_exit_' + code + ': ' + stderrBuf.slice(0, 200)));
+          resolve(_withTrace(buildFailedChecklist(wpId, 'claude_exit_' + code + ': ' + stderrBuf.slice(0, 200)), trace));
           return;
         }
-        resolve(chk);
+        resolve(_withTrace(chk, trace));
       });
     });
   }

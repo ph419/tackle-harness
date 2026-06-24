@@ -1,6 +1,6 @@
 {
   "name": "tackle-harness",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "description": "Plugin-based AI Agent Harness framework for Claude Code",
   "bin": {
     "tackle-harness": "bin/tackle.js"
@@ -31,12 +31,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ph419/tackle.git"
+    "url": "git+https://github.com/ph419/tackle-harness.git"
   },
   "author": "Tackle Contributors",
-  "homepage": "https://github.com/ph419/tackle#readme",
+  "homepage": "https://github.com/ph419/tackle-harness#readme",
   "bugs": {
-    "url": "https://github.com/ph419/tackle/issues"
+    "url": "https://github.com/ph419/tackle-harness/issues"
   },
   "license": "MIT",
   "optionalDependencies": {

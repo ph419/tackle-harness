@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.13] - 2026-06-24
+
+### Added
+
+- **Agentic Loop per-round 阶段级可观测性（WP-196-1-impl）**：新增五段式（Observe/Think/Act/Reflect/Decide）阶段级耗时打点 + 逐轮 trace 落盘，回应「感觉不是五段式」的运行时不可见反馈。三层联动，全部纯观测、决策逻辑零改动：
+  - 新增 `plugins/runtime/loop-trace.js`（+ `test/runtime/test-loop-trace.js`）：把 engine `step()` 的 `phaseTimings` + executor `_executorTrace` + 本轮 `verdict` 聚合成 round record，以 JSON Lines 追加到 `.tackle/loop-{loopId}/trace.jsonl`（崩溃可逐行回放，顺带修复 WP-194 根因⑥「运行时数据目录不存在」），并渲染一行式阶段摘要到 driver stdout。与 `loop-report.js` 解耦：后者是纯函数终态报告（无 IO），本模块负责增量落盘（有 IO 副作用）
+  - `provider-loop-engine/index.js`：`step()` 内用 `timePhase()` 包裹五段式采集 `{phase, startMs, endMs, elapsedMs, summary}`，附到返回值 `phaseTimings`；新增 `_buildPhaseSummaries` 补各阶段产出摘要（observe 的 pendingWps、think 的 action/targetWp、reflect 的 proximity/diverged、decide 的 verdict）
+  - `executor-default.js`（+ `executor-claude.js` 同步）：`run()` 采集 `{spawnMs, exitCode, timedOut, rateLimited}` 附到 `CheckResult._executorTrace`（下划线前缀表内部观测，reflection-evaluator 不消费），供 driver 聚合
+  - `bin/commands/loop.js`：driver 新增 `emitRoundTrace`，在 dispatch 轮 / noop 轮 / 终态轮三处入口聚合落盘 + 一行摘要
+- **观测降级纪律（承袭 WP-191）**：上述全部 IO/聚合路径均 try/catch 降级，`appendTrace` 写入失败只返回 `false` + warning，观测异常绝不阻断 loop 主流程
+
 ## [0.3.12] - 2026-06-23
 
 ### Changed
@@ -94,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **游离测试文件迁移纳入 CI**：将两份从未被 `scripts/test-runner.js` 扫描（该 runner 仅递归扫 `test/`，根目录与 `tests/` 均被忽略）的测试归位至 `test/runtime/`，使其自动纳入 `npm test`：
   - `test-validator-pipeline.js`（根目录）→ 已由 `test/runtime/test-validator-pipeline.js` 覆盖（40 测，commit `6feceaa` 引入），删除根目录死代码副本
   - `tests/wp-035-concurrency-test.js`（`tests/` 目录，注意有 s）→ `test/runtime/test-wp035-concurrency.js`，逻辑函数（`is_time_in_range` / `get_max_concurrent`）与断言语义完全保留，仅把 ES2015+（`const`/`for...of`/箭头函数）改写为 ES5（`var`/`for`/普通函数）与项目其他测试风格统一、Win/cmd 兼容性更好；8 测全通过
-- **SECURITY.md 修正**：安全公告 URL 占位符 `github.com/user/tackle` → 实际仓库 `github.com/ph419/tackle`（与 `package.json` 的 `repository.url` 一致）；支持版本矩阵 `0.2.x` / `< 0.2` → `0.3.x` / `< 0.3`（当前版本 `0.3.8`）
+- **SECURITY.md 修正**：安全公告 URL 占位符 `github.com/user/tackle` → 实际仓库 `github.com/ph419/tackle-harness`（与 `package.json` 的 `repository.url` 一致）；支持版本矩阵 `0.2.x` / `< 0.2` → `0.3.x` / `< 0.3`（当前版本 `0.3.8`）
 
 ### Verified
 
@@ -454,7 +465,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - hook-skill-gate stdin 安全加固：1MB 大小限制 + prototype pollution 防护 + 错误信息脱敏
 - `--root` 路径穿越安全检查
-- 仓库 URL 从 `anthropics/tackle-harness` 修正为 `ph419/tackle`
+- 仓库 URL 从 `anthropics/tackle-harness` 修正为 `ph419/tackle-harness`
 
 ## [0.0.14] - 2026-04-24
 
@@ -580,47 +591,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
-[0.3.10]: https://github.com/ph419/tackle/compare/v0.3.9...v0.3.10
-[0.3.9]: https://github.com/ph419/tackle/compare/v0.3.8...v0.3.9
-[0.3.8]: https://github.com/ph419/tackle/compare/v0.3.7...v0.3.8
-[0.3.7]: https://github.com/ph419/tackle/compare/v0.3.6...v0.3.7
-[0.3.6]: https://github.com/ph419/tackle/compare/v0.3.5...v0.3.6
-[0.3.5]: https://github.com/ph419/tackle/compare/v0.3.4...v0.3.5
-[0.3.4]: https://github.com/ph419/tackle/compare/v0.3.3...v0.3.4
-[0.3.3]: https://github.com/ph419/tackle/compare/v0.3.2...v0.3.3
-[0.3.2]: https://github.com/ph419/tackle/compare/v0.3.1...v0.3.2
-[0.3.1]: https://github.com/ph419/tackle/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/ph419/tackle/compare/v0.2.7...v0.3.0
-[0.2.7]: https://github.com/ph419/tackle/compare/v0.2.6...v0.2.7
-[0.2.6]: https://github.com/ph419/tackle/compare/v0.2.5...v0.2.6
-[0.2.5]: https://github.com/ph419/tackle/compare/v0.2.4...v0.2.5
-[0.2.4]: https://github.com/ph419/tackle/compare/v0.2.3...v0.2.4
-[0.2.3]: https://github.com/ph419/tackle/compare/v0.2.2...v0.2.3
-[0.2.1]: https://github.com/ph419/tackle/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/ph419/tackle/compare/v0.1.2...v0.2.0
-[0.1.2]: https://github.com/ph419/tackle/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/ph419/tackle/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/ph419/tackle/compare/v0.0.24...v0.1.0
-[0.0.24]: https://github.com/ph419/tackle/compare/v0.0.23...v0.0.24
-[0.0.23]: https://github.com/ph419/tackle/compare/v0.0.21...v0.0.23
-[0.0.21]: https://github.com/ph419/tackle/compare/v0.0.20...v0.0.21
-[0.0.20]: https://github.com/ph419/tackle/compare/v0.0.19...v0.0.20
-[0.0.19]: https://github.com/ph419/tackle/compare/v0.0.18...v0.0.19
-[0.0.18]: https://github.com/ph419/tackle/compare/v0.0.17...v0.0.18
-[0.0.17]: https://github.com/ph419/tackle/compare/v0.0.16...v0.0.17
-[0.0.16]: https://github.com/ph419/tackle/compare/v0.0.15...v0.0.16
-[0.0.15]: https://github.com/ph419/tackle/compare/v0.0.14...v0.0.15
-[0.0.14]: https://github.com/ph419/tackle/compare/v0.0.13...v0.0.14
-[0.0.13]: https://github.com/ph419/tackle/compare/v0.0.12...v0.0.13
-[0.0.12]: https://github.com/ph419/tackle/compare/v0.0.11...v0.0.12
-[0.0.11]: https://github.com/ph419/tackle/compare/v0.0.10...v0.0.11
-[0.0.10]: https://github.com/ph419/tackle/compare/v0.0.9...v0.0.10
-[0.0.9]: https://github.com/ph419/tackle/compare/v0.0.8...v0.0.9
-[0.0.8]: https://github.com/ph419/tackle/compare/v0.0.7...v0.0.8
-[0.0.7]: https://github.com/ph419/tackle/compare/v0.0.6...v0.0.7
-[0.0.6]: https://github.com/ph419/tackle/compare/v0.0.5...v0.0.6
-[0.0.5]: https://github.com/ph419/tackle/compare/v0.0.4...v0.0.5
-[0.0.4]: https://github.com/ph419/tackle/compare/v0.0.3...v0.0.4
-[0.0.3]: https://github.com/ph419/tackle/compare/v0.0.2...v0.0.3
-[0.0.2]: https://github.com/ph419/tackle/compare/v0.0.1...v0.0.2
-[0.0.1]: https://github.com/ph419/tackle/releases/tag/v0.0.1
+[0.3.13]: https://github.com/ph419/tackle-harness/compare/v0.3.12...v0.3.13
+[0.3.12]: https://github.com/ph419/tackle-harness/compare/v0.3.11...v0.3.12
+[0.3.11]: https://github.com/ph419/tackle-harness/compare/v0.3.10...v0.3.11
+[0.3.10]: https://github.com/ph419/tackle-harness/compare/v0.3.9...v0.3.10
+[0.3.9]: https://github.com/ph419/tackle-harness/compare/v0.3.8...v0.3.9
+[0.3.8]: https://github.com/ph419/tackle-harness/compare/v0.3.7...v0.3.8
+[0.3.7]: https://github.com/ph419/tackle-harness/compare/v0.3.6...v0.3.7
+[0.3.6]: https://github.com/ph419/tackle-harness/compare/v0.3.5...v0.3.6
+[0.3.5]: https://github.com/ph419/tackle-harness/compare/v0.3.4...v0.3.5
+[0.3.4]: https://github.com/ph419/tackle-harness/compare/v0.3.3...v0.3.4
+[0.3.3]: https://github.com/ph419/tackle-harness/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/ph419/tackle-harness/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/ph419/tackle-harness/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/ph419/tackle-harness/compare/v0.2.7...v0.3.0
+[0.2.7]: https://github.com/ph419/tackle-harness/compare/v0.2.6...v0.2.7
+[0.2.6]: https://github.com/ph419/tackle-harness/compare/v0.2.5...v0.2.6
+[0.2.5]: https://github.com/ph419/tackle-harness/compare/v0.2.4...v0.2.5
+[0.2.4]: https://github.com/ph419/tackle-harness/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/ph419/tackle-harness/compare/v0.2.2...v0.2.3
+[0.2.1]: https://github.com/ph419/tackle-harness/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/ph419/tackle-harness/compare/v0.1.2...v0.2.0
+[0.1.2]: https://github.com/ph419/tackle-harness/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/ph419/tackle-harness/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/ph419/tackle-harness/compare/v0.0.24...v0.1.0
+[0.0.24]: https://github.com/ph419/tackle-harness/compare/v0.0.23...v0.0.24
+[0.0.23]: https://github.com/ph419/tackle-harness/compare/v0.0.21...v0.0.23
+[0.0.21]: https://github.com/ph419/tackle-harness/compare/v0.0.20...v0.0.21
+[0.0.20]: https://github.com/ph419/tackle-harness/compare/v0.0.19...v0.0.20
+[0.0.19]: https://github.com/ph419/tackle-harness/compare/v0.0.18...v0.0.19
+[0.0.18]: https://github.com/ph419/tackle-harness/compare/v0.0.17...v0.0.18
+[0.0.17]: https://github.com/ph419/tackle-harness/compare/v0.0.16...v0.0.17
+[0.0.16]: https://github.com/ph419/tackle-harness/compare/v0.0.15...v0.0.16
+[0.0.15]: https://github.com/ph419/tackle-harness/compare/v0.0.14...v0.0.15
+[0.0.14]: https://github.com/ph419/tackle-harness/compare/v0.0.13...v0.0.14
+[0.0.13]: https://github.com/ph419/tackle-harness/compare/v0.0.12...v0.0.13
+[0.0.12]: https://github.com/ph419/tackle-harness/compare/v0.0.11...v0.0.12
+[0.0.11]: https://github.com/ph419/tackle-harness/compare/v0.0.10...v0.0.11
+[0.0.10]: https://github.com/ph419/tackle-harness/compare/v0.0.9...v0.0.10
+[0.0.9]: https://github.com/ph419/tackle-harness/compare/v0.0.8...v0.0.9
+[0.0.8]: https://github.com/ph419/tackle-harness/compare/v0.0.7...v0.0.8
+[0.0.7]: https://github.com/ph419/tackle-harness/compare/v0.0.6...v0.0.7
+[0.0.6]: https://github.com/ph419/tackle-harness/compare/v0.0.5...v0.0.6
+[0.0.5]: https://github.com/ph419/tackle-harness/compare/v0.0.4...v0.0.5
+[0.0.4]: https://github.com/ph419/tackle-harness/compare/v0.0.3...v0.0.4
+[0.0.3]: https://github.com/ph419/tackle-harness/compare/v0.0.2...v0.0.3
+[0.0.2]: https://github.com/ph419/tackle-harness/compare/v0.0.1...v0.0.2
+[0.0.1]: https://github.com/ph419/tackle-harness/releases/tag/v0.0.1

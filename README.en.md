@@ -3,9 +3,9 @@
 > A plugin-based AI Agent workflow framework that provides task management, workflow orchestration, and role management for Claude Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.3.12-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.3.13-blue.svg)](https://github.com/ph419/tackle-harness)
 
-**[中文文档](https://github.com/ph419/tackle/blob/main/README.md)**
+**[中文文档](https://github.com/ph419/tackle-harness/blob/main/README.md)**
 
 ## Why Tackle Harness
 
@@ -368,8 +368,8 @@ The project includes GitHub Actions workflows that automatically run tests on PR
 
 ## Example Projects
 
-See the [examples/](https://github.com/ph419/tackle/tree/main/examples/) directory for complete example projects:
-- **[minimal](https://github.com/ph419/tackle/tree/main/examples/minimal/)** — Minimal example project showing basic integration and configuration
+See the [examples/](https://github.com/ph419/tackle-harness/tree/main/examples/) directory for complete example projects:
+- **[minimal](https://github.com/ph419/tackle-harness/tree/main/examples/minimal/)** — Minimal example project showing basic integration and configuration
 
 ## Continuous Integration
 
@@ -377,17 +377,17 @@ The project uses GitHub Actions for CI/CD:
 - **CI Workflow** — Runs test matrix on Ubuntu/Windows/macOS × Node.js 18/20, with line coverage threshold check
 - **Publish Workflow** — Tag-triggered npm publishing
 
-See [.github/workflows/](https://github.com/ph419/tackle/tree/main/.github/workflows/) for details
+See [.github/workflows/](https://github.com/ph419/tackle-harness/tree/main/.github/workflows/) for details
 
 ## Contributing
 
-Contributions welcome! We accept bug reports, feature suggestions, code submissions, and documentation improvements. See [Contributing Guide](https://github.com/ph419/tackle/blob/main/CONTRIBUTING.md).
+Contributions welcome! We accept bug reports, feature suggestions, code submissions, and documentation improvements. See [Contributing Guide](https://github.com/ph419/tackle-harness/blob/main/CONTRIBUTING.md).
 
 Quick start: Fork → Create branch → Make changes → Submit PR. Follow [Conventional Commits](https://www.conventionalcommits.org/) format.
 
 ## License
 
-MIT License - See [LICENSE](https://github.com/ph419/tackle/blob/main/LICENSE) file
+MIT License - See [LICENSE](https://github.com/ph419/tackle-harness/blob/main/LICENSE) file
 
 ## Acknowledgments
 

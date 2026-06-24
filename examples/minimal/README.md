@@ -115,9 +115,9 @@ npx tackle-harness --help
 
 项目包含一个示例工作包文件，展示工作包文档格式：
 
-- [`docs/wp/WP-SAMPLE-001.md`](https://github.com/ph419/tackle/blob/main/examples/minimal/docs/wp/WP-SAMPLE-001.md) — 包含任务列表、验收标准、测试用例的完整示例
+- [`docs/wp/WP-SAMPLE-001.md`](https://github.com/ph419/tackle-harness/blob/main/examples/minimal/docs/wp/WP-SAMPLE-001.md) — 包含任务列表、验收标准、测试用例的完整示例
 
-常用工作流演示见 [`docs/workflow-guide.md`](https://github.com/ph419/tackle/blob/main/examples/minimal/docs/workflow-guide.md)。
+常用工作流演示见 [`docs/workflow-guide.md`](https://github.com/ph419/tackle-harness/blob/main/examples/minimal/docs/workflow-guide.md)。
 
 ## 配置说明
 
@@ -144,6 +144,6 @@ npx tackle-harness --help
 
 ## 更多资源
 
-- [主项目 README](https://github.com/ph419/tackle/blob/main/README.md)
-- [开发指南](https://github.com/ph419/tackle/blob/main/CLAUDE.md)
-- [配置模板](https://github.com/ph419/tackle/blob/main/templates/harness-config.yaml)
+- [主项目 README](https://github.com/ph419/tackle-harness/blob/main/README.md)
+- [开发指南](https://github.com/ph419/tackle-harness/blob/main/CLAUDE.md)
+- [配置模板](https://github.com/ph419/tackle-harness/blob/main/templates/harness-config.yaml)

@@ -3,9 +3,9 @@
 > 基于插件的 AI Agent 工作流框架，为 Claude Code 提供任务管理、工作流编排、角色管理等能力
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.3.12-blue.svg)](https://github.com/ph419/tackle)
+[![Version](https://img.shields.io/badge/version-0.3.13-blue.svg)](https://github.com/ph419/tackle-harness)
 
-**[English](https://github.com/ph419/tackle/blob/main/README.en.md)**
+**[English](https://github.com/ph419/tackle-harness/blob/main/README.en.md)**
 
 ## 为什么选择 Tackle Harness
 
@@ -369,8 +369,8 @@ tackle-harness i
 
 ## 示例项目
 
-查看 [examples/](https://github.com/ph419/tackle/tree/main/examples/) 目录获取完整的示例项目：
-- **[minimal](https://github.com/ph419/tackle/tree/main/examples/minimal/)** — 最小示例项目，展示基本集成方式和配置
+查看 [examples/](https://github.com/ph419/tackle-harness/tree/main/examples/) 目录获取完整的示例项目：
+- **[minimal](https://github.com/ph419/tackle-harness/tree/main/examples/minimal/)** — 最小示例项目，展示基本集成方式和配置
 
 ## 持续集成
 
@@ -378,17 +378,17 @@ tackle-harness i
 - **CI 工作流** — 在 Ubuntu/Windows/macOS 三平台 × Node.js 18/20 上运行测试矩阵，并检查行覆盖率阈值
 - **发布工作流** — Tag 触发自动发布到 npm
 
-详见 [.github/workflows/](https://github.com/ph419/tackle/tree/main/.github/workflows/)
+详见 [.github/workflows/](https://github.com/ph419/tackle-harness/tree/main/.github/workflows/)
 
 ## 贡献
 
-欢迎贡献！我们接受 Bug 报告、功能建议、代码提交和文档改进。详见 [贡献指南](https://github.com/ph419/tackle/blob/main/CONTRIBUTING.md)。
+欢迎贡献！我们接受 Bug 报告、功能建议、代码提交和文档改进。详见 [贡献指南](https://github.com/ph419/tackle-harness/blob/main/CONTRIBUTING.md)。
 
 快速上手：Fork → 创建分支 → 修改 → 提交 PR。Commit 遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式。
 
 ## 许可证
 
-MIT License - 详见 [LICENSE](https://github.com/ph419/tackle/blob/main/LICENSE) 文件
+MIT License - 详见 [LICENSE](https://github.com/ph419/tackle-harness/blob/main/LICENSE) 文件
 
 ## 致谢
 

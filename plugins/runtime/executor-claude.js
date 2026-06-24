@@ -423,6 +423,24 @@ function buildClaudeArgs(allowedTools, settingsPath) {
  * @param {string} [opts.settingsPath] claude settings 文件路径（透传 --settings；切换 provider/套餐）
  * @returns {{ name:string, run:Function, config:object }}
  */
+
+/**
+ * 把 executor 打点 trace 附到 CheckResult 上（WP-196-1-impl，纯观测）。
+ * 下划线前缀 `_executorTrace` 表示内部观测字段，reflection-evaluator 不消费；
+ * driver 读取后聚合到 round record。全程 try/catch 降级。
+ * @param {object} checkResult
+ * @param {object} trace { spawnMs, exitCode, timedOut, rateLimited, tokenUsage }
+ * @returns {object} 原 checkResult（附 _executorTrace）
+ */
+function withExecutorTrace(checkResult, trace) {
+  try {
+    if (checkResult && typeof checkResult === 'object') {
+      checkResult._executorTrace = trace || null;
+    }
+  } catch (_e) { /* 降级：观测失败绝不阻断 */ }
+  return checkResult;
+}
+
 function createExecutor(opts) {
   opts = opts || {};
   var config = {
@@ -453,11 +471,19 @@ function createExecutor(opts) {
     pendingAction = pendingAction || {};
     var wpId = pendingAction.wpId || 'unknown';
 
+    // WP-196-1-impl：executor.run 打点（仅观测，不引入 provider 分支）。
+    //   采集 {spawnMs, exitCode, timedOut, rateLimited} 附在 checkResult._executorTrace。
+    //   tokenUsage 当前不可获取（claude CLI 不稳定暴露），留 null。
+    var trace = { spawnMs: null, exitCode: null, timedOut: false, rateLimited: false, tokenUsage: null };
+    var spawnStartMs = Date.now();
+
     // 限流
     var now = Date.now();
     callTimestamps = callTimestamps.filter(function (ts) { return now - ts < HOUR_MS; });
     if (callTimestamps.length >= config.rateLimitPerHour) {
-      return buildFailedChecklist(wpId, 'rate_limited');
+      trace.rateLimited = true;
+      trace.spawnMs = Date.now() - spawnStartMs;
+      return withExecutorTrace(buildFailedChecklist(wpId, 'rate_limited'), trace);
     }
     callTimestamps.push(now);
 
@@ -481,7 +507,8 @@ function createExecutor(opts) {
       });
     } catch (e) {
       // spawn 立即失败（如 binary 不存在，ENOENT）
-      return buildFailedChecklist(wpId, 'spawn_failed: ' + ((e && e.code) || (e && e.message) || String(e)));
+      trace.spawnMs = Date.now() - spawnStartMs;
+      return withExecutorTrace(buildFailedChecklist(wpId, 'spawn_failed: ' + ((e && e.code) || (e && e.message) || String(e))), trace);
     }
 
     // prompt 走 stdin（S1）：claude -p 从 stdin 读取，规避 argv 长度/泄漏问题。
@@ -521,13 +548,18 @@ function createExecutor(opts) {
 
       child.on('error', function (err) {
         clearTimeout(timer);
-        resolve(buildFailedChecklist(wpId, 'spawn_error: ' + (err && err.message ? err.message : String(err))));
+        trace.spawnMs = Date.now() - spawnStartMs;
+        trace.exitCode = null;
+        resolve(withExecutorTrace(buildFailedChecklist(wpId, 'spawn_error: ' + (err && err.message ? err.message : String(err))), trace));
       });
 
       child.on('close', function (code) {
         clearTimeout(timer);
+        trace.spawnMs = Date.now() - spawnStartMs;
+        trace.exitCode = (typeof code === 'number') ? code : null;
+        trace.timedOut = timedOut === true;
         if (timedOut) {
-          resolve(buildFailedChecklist(wpId, 'timeout'));
+          resolve(withExecutorTrace(buildFailedChecklist(wpId, 'timeout'), trace));
           return;
         }
         // 提取 text → 解析 checklist block
@@ -542,10 +574,10 @@ function createExecutor(opts) {
         // 非 0 退出码但解析出结果：仍用解析结果（claude 可能正常输出后非 0 退出）
         // 非 0 退出码且无解析结果：视为失败
         if (code !== 0 && !raw) {
-          resolve(buildFailedChecklist(wpId, 'claude_exit_' + code + ': ' + stderrBuf.slice(0, 200)));
+          resolve(withExecutorTrace(buildFailedChecklist(wpId, 'claude_exit_' + code + ': ' + stderrBuf.slice(0, 200)), trace));
           return;
         }
-        resolve(chk);
+        resolve(withExecutorTrace(chk, trace));
       });
     });
   }

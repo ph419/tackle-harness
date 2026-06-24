@@ -1025,6 +1025,92 @@ test.describe('step', function () {
       env.restore();
     }
   });
+
+  // ─────────────────────────────────────────────
+  // Section 4c: WP-196-2-test 决策逻辑回归 — 计时采集零副作用
+  //   phaseTimings 是 WP-196-1-impl 新增的纯观测字段（timePhase 仅包裹 Date.now 计时），
+  //   不得改变 _observe/_think/_act/_reflect/_decide 的分支与返回值。
+  // ─────────────────────────────────────────────
+
+  test('WP-196-2-test: phaseTimings 计时采集零副作用——verdict/iteration/state 与决策产物不变', async function () {
+    var env = await makeEngine({ getProvider: function () { return null; } });
+    try {
+      env.api.inject({
+        snapshot: {
+          aggregate: async function () {
+            return {
+              workPackages: { total: 2, pending: ['WP-1', 'WP-2'], completed: [], failed: [], blocked: [] },
+              lastChecklist: null,
+              watchdog: { health: 'healthy', running: true, deployed: true },
+            };
+          },
+        },
+        actuator: {
+          execute: async function () {
+            return { dispatched: true, roundElapsedMs: 5 };
+          },
+        },
+        evaluator: {
+          score: async function () {
+            return {
+              proximity: 0.5, converged: false, diverged: false,
+              divergenceStreak: 0, allPassed: false,
+              categoryScores: [], failingDrivers: [],
+            };
+          },
+        },
+      });
+      var res = await env.api.init({ goal: { wpIds: ['WP-1', 'WP-2'] } });
+      var out = await env.api.step(res.loopId);
+
+      // 决策产物回归：与改动前既有 step 用例（Section 4 第一条）口径一致
+      assert.strictEqual(out.iteration, 1, 'iteration 单调递增（计时零副作用）');
+      assert.strictEqual(out.verdict, 'continue', 'verdict 由 _decide 决策产出（proximity 0.5 未达标 → continue）');
+      var st = await env.api.getState(res.loopId);
+      assert.strictEqual(st.iteration, 1);
+      assert.strictEqual(st.history.length, 1, 'history 写入一轮（决策路径不变）');
+      assert.strictEqual(st.history[0].iteration, 1);
+      assert.strictEqual(st.history[0].verdict, 'continue');
+
+      // phaseTimings 存在但纯观测：5 段齐全且 elapsedMs 合理
+      assert.ok(Array.isArray(out.phaseTimings), 'phaseTimings 存在（纯观测字段）');
+      assert.strictEqual(out.phaseTimings.length, 5, '五段全部采集');
+      var names = out.phaseTimings.map(function (p) { return p.phase; });
+      assert.deepStrictEqual(names, ['observe', 'think', 'act', 'reflect', 'decide'],
+        '阶段顺序与决策执行顺序一致');
+      // 各段 elapsedMs 非负、startMs≤endMs（计时包裹不破坏时序）
+      out.phaseTimings.forEach(function (p) {
+        assert.ok(typeof p.elapsedMs === 'number' && p.elapsedMs >= 0, p.phase + ' elapsedMs ≥ 0');
+        assert.ok(p.endMs >= p.startMs, p.phase + ' 时序正确');
+      });
+      // phaseTimings 不进入 state.history（观测与决策状态解耦）
+      assert.strictEqual(st.history[0].phaseTimings, undefined, 'phaseTimings 不污染决策 history');
+    } finally {
+      env.restore();
+    }
+  });
+
+  test('WP-196-2-test: _decide 优先级回归不受计时包裹影响（熔断 > 发散 > 上限 > 达成 > 继续）', async function () {
+    // 验证 _decide 各终态判定仍按既有优先级生效（计时仅包裹 _decide 调用，不改判定逻辑）
+    var env = await makeEngine({ getProvider: function () { return null; } });
+    try {
+      var res = await env.api.init({});
+      var st = await env.api.getState(res.loopId);
+      st.lastSnapshot = {
+        workPackages: { total: 2, pending: ['WP-1'], completed: [], failed: [], blocked: [] },
+      };
+      st.iteration = 6; // 达上限
+      await env.provider._store.set('loop.' + res.loopId, st);
+
+      // 上限优先于达成（proximity 满分但因 iteration=6 判 timeout）
+      var verdict = await env.api.decide(res.loopId, {
+        divergenceStreak: 0, proximity: 1, allPassed: true,
+      });
+      assert.strictEqual(verdict.verdict, 'timeout', '上限优先级不变（计时零副作用）');
+    } finally {
+      env.restore();
+    }
+  });
 });
 
 // ─────────────────────────────────────────────

@@ -44,6 +44,10 @@ var planReader = require('../../plugins/runtime/plan-reader');
 // executor 路由工厂（WP-185 / WP-188 重构）：driver 只认 createExecutor('local'|'default', opts)，
 // 新增 executor 只需在 loop-executor 注册一行，driver/engine 零改动。
 var loopExecutor = require('../../plugins/runtime/loop-executor');
+// WP-196-1-impl：per-round 阶段级可观测性聚合落盘（.tackle/loop-{loopId}/trace.jsonl）。
+//   仅观测：聚合 engine step().phaseTimings + checkResult._executorTrace → JSONL 落盘 + 一行摘要。
+//   全程降级，观测失败绝不阻断 loop 主流程。
+var loopTrace = require('../../plugins/runtime/loop-trace');
 // 三层配置（env > harness-config.yaml > 默认）：读 loop.providers 段供 resolver 匹配。
 var ConfigManager = require('../../plugins/runtime/config-manager');
 // provider 解析器（WP-188 重构）：探测生效模型 + 匹配 provider profile，决定 default executor 特性。
@@ -180,6 +184,48 @@ function resolveLoopWorkspace(projectRoot, stateDir, loopId) {
 // ---------------------------------------------------------------------------
 // PROGRESS.md 同步（硬约束 #5：snapshot 从这里读 completed）
 // ---------------------------------------------------------------------------
+
+/**
+ * WP-196-1-impl：聚合本轮 per-round trace + stdout 一行摘要 + 落盘 JSONL。
+ * 全程 try/catch 降级——观测失败只记 warning，绝不阻断 loop 主流程（承袭 WP-191 心跳降级纪律）。
+ *
+ * @param {object} ctx 命令上下文（colorize）
+ * @param {Function} log 日志输出函数
+ * @param {string} loopId
+ * @param {object} result engine step() 返回值（含 phaseTimings / verdict / iteration）
+ * @param {object} [checkResult] executor.run() 返回值（含 _executorTrace）；noop/终态轮为 null
+ * @param {string} [dispatchedWp] 本轮 dispatch 的 WP；noop/终态轮为 null
+ */
+function emitRoundTrace(ctx, log, loopId, result, checkResult, dispatchedWp) {
+  try {
+    var phaseTimings = (result && Array.isArray(result.phaseTimings)) ? result.phaseTimings : [];
+    var executorTrace = (checkResult && checkResult._executorTrace) ? checkResult._executorTrace : null;
+    var roundRecord = loopTrace.buildRoundRecord({
+      loopId: loopId,
+      iteration: (result && typeof result.iteration === 'number') ? result.iteration : 0,
+      phaseTimings: phaseTimings,
+      executorTrace: executorTrace,
+      dispatchedWp: dispatchedWp || null,
+      verdict: (result && result.verdict) || null,
+    });
+    // stdout 一行式阶段摘要（让用户「看见五段式在跑」，回应「感觉不是五段式」）
+    var oneLine = loopTrace.renderOneLine(roundRecord);
+    log(ctx && typeof ctx.colorize === 'function' ? ctx.colorize(oneLine, 'gray') : oneLine);
+    // 落盘 .tackle/loop-{loopId}/trace.jsonl（JSON Lines 追加，崩溃可回放）
+    var tracePath = loopTrace.resolveTracePath(loopId);
+    var ok = loopTrace.appendTrace(tracePath, roundRecord);
+    if (!ok) {
+      log(ctx && typeof ctx.colorize === 'function'
+        ? ctx.colorize('⚠ warning: loop trace append failed: ' + tracePath, 'yellow')
+        : 'warning: loop trace append failed: ' + tracePath);
+    }
+  } catch (e) {
+    // 极端降级：观测聚合本身抛错也绝不阻断 loop
+    log(ctx && typeof ctx.colorize === 'function'
+      ? ctx.colorize('⚠ warning: loop trace emit skipped: ' + (e && e.message ? e.message : String(e)), 'yellow')
+      : 'warning: loop trace emit skipped');
+  }
+}
 
 /**
  * 把 `- [x] WP-NNN` 行追加到 PROGRESS.md（幂等：已存在则不重复写）。
@@ -741,7 +787,11 @@ module.exports = {
         }
 
         // 终态出口：engine verdict 非 continue 即停
-        if (result.verdict !== 'continue') break;
+        if (result.verdict !== 'continue') {
+          // WP-196-1-impl：终态轮也落 per-round trace（engine 阶段耗时 + verdict，executor=null）
+          emitRoundTrace(ctx, log, loopId, result, null, null);
+          break;
+        }
 
         // 消费 pendingAction（actuator 在 act 阶段写入）
         //   关键：driverStore 缓存必须刷新，否则读到 engine 最新写入前的旧 pendingAction
@@ -771,9 +821,13 @@ module.exports = {
               log('  ' + ctx.colorize('✗ ' + pending.wpId + ' failed', 'yellow') +
                 ' (' + (checkResult.failedItems || []).length + ' items)');
             }
+            // WP-196-1-impl：本轮 dispatch 完成，聚合 engine 阶段 + executor trace 落盘 + 一行摘要
+            emitRoundTrace(ctx, log, loopId, result, checkResult, pending.wpId);
           }
         } else {
           // noop decision（无可执行项）：继续下一轮，由 engine decide 判 achieved/发散
+          // WP-196-1-impl：noop 轮也落 trace（engine 阶段耗时可见，executor=null）
+          if (!args.dryRun) emitRoundTrace(ctx, log, loopId, result, null, null);
         }
       }
     } catch (e) {

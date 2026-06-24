@@ -4,7 +4,7 @@
 
 ## 示例列表
 
-### [minimal/](https://github.com/ph419/tackle/tree/main/examples/minimal/)
+### [minimal/](https://github.com/ph419/tackle-harness/tree/main/examples/minimal/)
 
 最小示例项目，展示：
 - 基本项目结构
@@ -59,7 +59,7 @@ your-project/
 
 ## 更多资源
 
-- [主项目 README](https://github.com/ph419/tackle/blob/main/README.md)
-- [开发指南](https://github.com/ph419/tackle/blob/main/CLAUDE.md)
-- [配置模板](https://github.com/ph419/tackle/blob/main/templates/harness-config.yaml)
+- [主项目 README](https://github.com/ph419/tackle-harness/blob/main/README.md)
+- [开发指南](https://github.com/ph419/tackle-harness/blob/main/CLAUDE.md)
+- [配置模板](https://github.com/ph419/tackle-harness/blob/main/templates/harness-config.yaml)
 - [npm 包](https://www.npmjs.com/package/tackle-harness)

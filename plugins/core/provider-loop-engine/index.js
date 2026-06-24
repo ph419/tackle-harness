@@ -683,9 +683,35 @@ class LoopEngineProvider extends ProviderPlugin {
         await saveState(state);
 
         // Observe → Think → Act → Reflect → Decide（显式顺序，每个 phase 各自 persist）
-        var snapshot = await factoryApi.observe(loopId);
-        var decision = await factoryApi.think(loopId, snapshot);
-        var actResult = await factoryApi.act(loopId, decision);
+        // WP-196-1-impl：五段式阶段级耗时打点（仅观测，决策逻辑零改动）。
+        //   各阶段前后用 Date.now() 包裹记 {phase, startMs, endMs, elapsedMs, summary}，
+        //   全程 try/catch 降级——观测异常绝不阻断 loop 主流程（承袭 WP-191 心跳降级纪律）。
+        var phaseTimings = [];
+        function timePhase(name, fn) {
+          // 返回 Promise<value>；计时失败时仍返回 fn 结果，仅丢失 timing。
+          var startMs = Date.now();
+          var p;
+          try {
+            p = Promise.resolve(fn());
+          } catch (e) {
+            p = Promise.reject(e);
+          }
+          return p.then(function (value) {
+            try {
+              phaseTimings.push({
+                phase: name,
+                startMs: startMs,
+                endMs: Date.now(),
+                elapsedMs: Date.now() - startMs,
+              });
+            } catch (_te) { /* 计时降级：忽略 */ }
+            return value;
+          });
+        }
+
+        var snapshot = await timePhase('observe', function () { return factoryApi.observe(loopId); });
+        var decision = await timePhase('think', function () { return factoryApi.think(loopId, snapshot); });
+        var actResult = await timePhase('act', function () { return factoryApi.act(loopId, decision); });
 
         // 单轮时长校验（WP-177-2-impl-a/b）：act 完成后若本轮耗时超过
         // max_round_time_ms，直接判 timeout 终止，跳过 reflect/decide。
@@ -717,11 +743,14 @@ class LoopEngineProvider extends ProviderPlugin {
             iteration: stateTimeout.iteration,
             state: stateTimeout,
             report: stateTimeout.terminalReport || null,
+            // WP-196-1-impl：单轮超时出口已跑完 observe/think/act，附已采集的阶段耗时
+            //   （reflect/decide 未执行故缺）。纯观测，driver 落盘用。
+            phaseTimings: phaseTimings,
           };
         }
 
-        var evalResult = await factoryApi.reflect(loopId, snapshot);
-        var verdict = await factoryApi.decide(loopId, evalResult);
+        var evalResult = await timePhase('reflect', function () { return factoryApi.reflect(loopId, snapshot); });
+        var verdict = await timePhase('decide', function () { return factoryApi.decide(loopId, evalResult); });
 
         // 写本轮历史（防丢失，发散检测依赖完整 history）
         var stateFinal = await loadState(loopId);
@@ -753,11 +782,32 @@ class LoopEngineProvider extends ProviderPlugin {
         }
         await saveState(stateFinal);
 
+        // WP-196-1-impl：补各阶段产出摘要（仅读取已采集局部变量，不新增决策分支），
+        //   并把 phaseTimings 附到返回值供 driver 落盘/可见性输出。全程 try/catch 降级。
+        var phaseTimingsWithSummary = phaseTimings;
+        try {
+          var summaries = self._buildPhaseSummaries({
+            snapshot: snapshot,
+            decision: decision,
+            actResult: actResult,
+            evalResult: evalResult,
+            verdict: verdict,
+          });
+          phaseTimingsWithSummary = phaseTimings.map(function (pt) {
+            var enriched = Object.assign({}, pt);
+            if (summaries[pt.phase] !== undefined) enriched.summary = summaries[pt.phase];
+            return enriched;
+          });
+        } catch (_se) { /* 摘要降级：保留无 summary 的 timings */ }
+
         return {
           verdict: verdict.verdict,
           iteration: stateFinal.iteration,
           state: stateFinal,
           report: finalReport,
+          // WP-196-1-impl：per-round 五段式阶段级耗时（observe/think/act/reflect/decide），
+          //   纯观测字段，driver 聚合落盘 .tackle/loop-{loopId}/trace.jsonl。
+          phaseTimings: phaseTimingsWithSummary,
         };
       },
 
@@ -1175,6 +1225,64 @@ class LoopEngineProvider extends ProviderPlugin {
         : 0,
       watchdogHealthy: !!(snapshot.watchdog && snapshot.watchdog.running),
     };
+  }
+
+  /**
+   * 构建五段式各阶段产出摘要（WP-196-1-impl，纯观测）。
+   * 仅读取 step() 已采集的局部变量，不新增任何决策分支；任一字段缺失返回 undefined（driver 据此省略）。
+   * @private
+   * @param {object} ctx { snapshot, decision, actResult, evalResult, verdict }
+   * @returns {object} phase → summary（值可为 string/number/object）
+   */
+  _buildPhaseSummaries(ctx) {
+    ctx = ctx || {};
+    var out = {};
+    try {
+      // observe：pending WP 计数（复用 _summarizeSnapshot 口径，不重复造轮子）
+      if (ctx.snapshot) {
+        var ss = this._summarizeSnapshot(ctx.snapshot) || {};
+        out.observe = { pendingWps: ss.pendingWps, failedChecks: ss.failedChecks };
+      }
+    } catch (_e) { /* 降级 */ }
+    try {
+      // think：本轮 decision 的 action + 目标 WP（若有）
+      if (ctx.decision) {
+        out.think = {
+          action: ctx.decision.action || null,
+          targetWp: ctx.decision.targetWp || (ctx.decision.wpId) || null,
+        };
+      }
+    } catch (_e) { /* 降级 */ }
+    try {
+      // act：复用 actResult.roundElapsedMs（act 内部口径，单轮总耗时）+ dispatch WP
+      if (ctx.actResult) {
+        out.act = {
+          roundElapsedMs: (typeof ctx.actResult.roundElapsedMs === 'number')
+            ? ctx.actResult.roundElapsedMs : null,
+          dispatchedWp: ctx.actResult.wpId || (ctx.decision && (ctx.decision.targetWp || ctx.decision.wpId)) || null,
+        };
+      }
+    } catch (_e) { /* 降级 */ }
+    try {
+      // reflect：proximity + 发散/收敛信号（history 已记 eval，这里仅复述供 trace 一行可读）
+      if (ctx.evalResult) {
+        out.reflect = {
+          proximity: (typeof ctx.evalResult.proximity === 'number')
+            ? ctx.evalResult.proximity : null,
+          diverged: ctx.evalResult.diverged === true,
+          converged: ctx.evalResult.converged === true,
+          failedCount: (typeof ctx.evalResult.failedCount === 'number')
+            ? ctx.evalResult.failedCount : null,
+        };
+      }
+    } catch (_e) { /* 降级 */ }
+    try {
+      // decide：verdict（多数终态出口在提前 return 路径，正常路径 verdict 由 _decide 产出）
+      if (ctx.verdict) {
+        out.decide = { verdict: ctx.verdict.verdict || null };
+      }
+    } catch (_e) { /* 降级 */ }
+    return out;
   }
 
   /**

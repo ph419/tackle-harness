@@ -41,14 +41,14 @@
 2. **Clone 到本地**
 
    ```bash
-   git clone https://github.com/<your-username>/tackle.git
+   git clone https://github.com/<your-username>/tackle-harness.git
    cd tackle
    ```
 
 3. **添加上游仓库**
 
    ```bash
-   git remote add upstream https://github.com/ph419/tackle.git
+   git remote add upstream https://github.com/ph419/tackle-harness.git
    ```
 
 4. **验证构建**
@@ -317,7 +317,7 @@ npm run test:smoke
 
 ### Bug 报告
 
-在 [GitHub Issues](https://github.com/ph419/tackle/issues) 中创建新 Issue，使用 **Bug Report** 标签，并包含以下信息：
+在 [GitHub Issues](https://github.com/ph419/tackle-harness/issues) 中创建新 Issue，使用 **Bug Report** 标签，并包含以下信息：
 
 1. **Bug 描述**：清晰描述遇到的问题
 2. **复现步骤**：
@@ -395,7 +395,7 @@ npm run test:smoke
 
 如果你有任何问题，可以通过以下方式获取帮助：
 
-- 在 [GitHub Issues](https://github.com/ph419/tackle/issues) 中提问
-- 查阅 [文档目录](https://github.com/ph419/tackle/tree/main/docs/design/) 中的相关文档
+- 在 [GitHub Issues](https://github.com/ph419/tackle-harness/issues) 中提问
+- 查阅 [文档目录](https://github.com/ph419/tackle-harness/tree/main/docs/design/) 中的相关文档
 
 再次感谢你的贡献！每一个 PR、每一个 Issue、每一行代码都让 Tackle Harness 变得更好。

@@ -5,6 +5,11 @@
 .claude-daemon/
 CLAUDE.md
 
+# .tackle/ 是 WP-196 引入的 Agentic Loop per-round trace 运行时落盘区
+# （.tackle/loop-{loopId}/trace.jsonl：五阶段 elapsedMs + executor 打点），
+# 落盘即生效、事后可回放，属运行时数据不入 git。
+.tackle/
+
 # Docs
 docs/*
 !docs/design/
