@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.14] - 2026-06-26
+
+### Fixed
+
+- **loop-trace 一行式摘要 Act 段并入 executor.spawnMs（WP-196 后续修复）**：`renderOneLine` 原仅渲染 `act.elapsedMs`，而 engine `step()` 的 `timePhase('act')` 只包裹 `factoryApi.act()`（毫秒级 dispatch 决策），真正耗时的 `executor.run()`（spawn claude/glm，单轮数十秒~分钟）由 driver 在 `step()` 返回后调用（`bin/commands/loop.js:808`），不在 act 计时内——stdout 打出「Act 4ms」掩盖 90%+ 真实 spawn 开销（实测一轮 act.elapsedMs=4ms 但 executor.spawnMs=90754ms，几乎全部耗时隐形）。修复：`roundRecord.executor.spawnMs` 为 number 时并入 Act 显示（engine act 决策 + driver executor 执行 = 真实 Act 总耗时）；executor 缺失 / noop 轮 / spawnMs 非 number 时降级保持原行为。`test/runtime/test-loop-trace.js` +3 用例（核心合并 Act=90758ms / act 缺失边界 / 非 number 降级），全量 test:runtime 零回归
+
+### Changed
+
+- `.gitignore` 补 `.tackle-state/`（loop driver 默认 state 目录 `.tackle-state/{loopId}/`，原 untracked 污染）
+
 ## [0.3.13] - 2026-06-24
 
 ### Added
@@ -591,6 +601,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.3.14]: https://github.com/ph419/tackle-harness/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/ph419/tackle-harness/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/ph419/tackle-harness/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/ph419/tackle-harness/compare/v0.3.10...v0.3.11
