@@ -278,6 +278,168 @@ test.describe('think', function () {
       env.restore();
     }
   });
+
+  // ── Step 0 拓扑接线（next-dev-plan Batch 1）：_think readyWave 过滤 ──
+
+  test('有依赖 WP → _think 选 readyWave[0]（依赖就绪的，Step 0）', async function () {
+    var env = await makeEngine();
+    try {
+      var res = await env.api.init({
+        goal: {
+          wpIds: ['WP-A', 'WP-B'],
+          dependencyGraph: {
+            nodes: {
+              'WP-A': { wpId: 'WP-A', dependencies: ['WP-B'], dependents: [] },
+              'WP-B': { wpId: 'WP-B', dependencies: [], dependents: ['WP-A'] },
+            },
+            edges: [{ from: 'WP-A', to: 'WP-B' }],
+            order: ['WP-B', 'WP-A'],
+            hasCycle: false, cycle: [],
+          },
+        },
+      });
+      var snap = {
+        workPackages: { total: 2, pending: ['WP-B', 'WP-A'], completed: [], failed: [], blocked: [] },
+        lastChecklist: null,
+      };
+      var decision = await env.api.think(res.loopId, snap);
+      assert.strictEqual(decision.action, 'dispatch');
+      assert.strictEqual(decision.targetWp, 'WP-B');
+    } finally {
+      env.restore();
+    }
+  });
+
+  test('pending 反序（依赖未就绪 WP 在前）→ 第二道兜底仍选 readyWave[0]', async function () {
+    var env = await makeEngine();
+    try {
+      var res = await env.api.init({
+        goal: {
+          wpIds: ['WP-A', 'WP-B'],
+          dependencyGraph: {
+            nodes: {
+              'WP-A': { wpId: 'WP-A', dependencies: ['WP-B'], dependents: [] },
+              'WP-B': { wpId: 'WP-B', dependencies: [], dependents: ['WP-A'] },
+            },
+            edges: [{ from: 'WP-A', to: 'WP-B' }],
+            order: ['WP-B', 'WP-A'],
+            hasCycle: false, cycle: [],
+          },
+        },
+      });
+      var snap = {
+        workPackages: { total: 2, pending: ['WP-A', 'WP-B'], completed: [], failed: [], blocked: [] },
+        lastChecklist: null,
+      };
+      var decision = await env.api.think(res.loopId, snap);
+      assert.strictEqual(decision.action, 'dispatch');
+      assert.strictEqual(decision.targetWp, 'WP-B');
+    } finally {
+      env.restore();
+    }
+  });
+
+  test('依赖完成后 → 原 blocked WP 变 ready 可 dispatch', async function () {
+    var env = await makeEngine();
+    try {
+      var res = await env.api.init({
+        goal: {
+          wpIds: ['WP-A', 'WP-B'],
+          dependencyGraph: {
+            nodes: {
+              'WP-A': { wpId: 'WP-A', dependencies: ['WP-B'], dependents: [] },
+              'WP-B': { wpId: 'WP-B', dependencies: [], dependents: ['WP-A'] },
+            },
+            edges: [{ from: 'WP-A', to: 'WP-B' }],
+            order: ['WP-B', 'WP-A'],
+            hasCycle: false, cycle: [],
+          },
+        },
+      });
+      var snap = {
+        workPackages: { total: 2, pending: ['WP-A'], completed: ['WP-B'], failed: [], blocked: [] },
+        lastChecklist: null,
+      };
+      var decision = await env.api.think(res.loopId, snap);
+      assert.strictEqual(decision.action, 'dispatch');
+      assert.strictEqual(decision.targetWp, 'WP-A');
+    } finally {
+      env.restore();
+    }
+  });
+});
+
+// ─────────────────────────────────────────────
+// Section 2c: 拓扑接线集成（Step 0 / next-dev-plan Batch 1）
+//   端到端：loop-snapshot 按 dependencyGraph.order 排 pending + engine._think
+//   选 readyWave[0] → 有依赖 WP 严格按拓扑序串行 dispatch（C → B → A）。
+// ─────────────────────────────────────────────
+
+test.describe('拓扑接线集成 (Step 0)', function () {
+  function buildRealSnapshot(state, progress) {
+    var loopSnapshot = require('../../plugins/runtime/loop-snapshot');
+    return {
+      workPackages: loopSnapshot._buildWorkPackages(state, progress, null),
+      lastChecklist: null,
+    };
+  }
+
+  // WP-A 依赖 WP-B，WP-B 依赖 WP-C：拓扑序应 dispatch C → B → A
+  var topoGoal = {
+    wpIds: ['WP-A', 'WP-B', 'WP-C'],
+    dependencyGraph: {
+      nodes: {
+        'WP-A': { wpId: 'WP-A', dependencies: ['WP-B'], dependents: [] },
+        'WP-B': { wpId: 'WP-B', dependencies: ['WP-C'], dependents: ['WP-A'] },
+        'WP-C': { wpId: 'WP-C', dependencies: [], dependents: ['WP-B'] },
+      },
+      edges: [{ from: 'WP-A', to: 'WP-B' }, { from: 'WP-B', to: 'WP-C' }],
+      order: ['WP-C', 'WP-B', 'WP-A'],
+      hasCycle: false, cycle: [],
+    },
+  };
+
+  test('首轮：C ready，A/B 依赖未就绪 → snapshot 排 [C,B,A]，dispatch WP-C', async function () {
+    var env = await makeEngine();
+    try {
+      var res = await env.api.init({ goal: topoGoal });
+      var snap = buildRealSnapshot({ goal: topoGoal }, { completed: [], incomplete: ['WP-A', 'WP-B', 'WP-C'] });
+      assert.deepStrictEqual(snap.workPackages.pending, ['WP-C', 'WP-B', 'WP-A'], 'snapshot 按拓扑序排 pending');
+      var decision = await env.api.think(res.loopId, snap);
+      assert.strictEqual(decision.action, 'dispatch');
+      assert.strictEqual(decision.targetWp, 'WP-C');
+    } finally {
+      env.restore();
+    }
+  });
+
+  test('C 完成后：B 变 ready → snapshot 排 [B,A]，dispatch WP-B', async function () {
+    var env = await makeEngine();
+    try {
+      var res = await env.api.init({ goal: topoGoal });
+      var snap = buildRealSnapshot({ goal: topoGoal }, { completed: ['WP-C'], incomplete: ['WP-A', 'WP-B'] });
+      assert.deepStrictEqual(snap.workPackages.pending, ['WP-B', 'WP-A']);
+      var decision = await env.api.think(res.loopId, snap);
+      assert.strictEqual(decision.action, 'dispatch');
+      assert.strictEqual(decision.targetWp, 'WP-B');
+    } finally {
+      env.restore();
+    }
+  });
+
+  test('B、C 完成后：A 变 ready → dispatch WP-A', async function () {
+    var env = await makeEngine();
+    try {
+      var res = await env.api.init({ goal: topoGoal });
+      var snap = buildRealSnapshot({ goal: topoGoal }, { completed: ['WP-B', 'WP-C'], incomplete: ['WP-A'] });
+      assert.deepStrictEqual(snap.workPackages.pending, ['WP-A']);
+      var decision = await env.api.think(res.loopId, snap);
+      assert.strictEqual(decision.action, 'dispatch');
+      assert.strictEqual(decision.targetWp, 'WP-A');
+    } finally {
+      env.restore();
+    }
+  });
 });
 
 // ─────────────────────────────────────────────

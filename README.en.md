@@ -3,7 +3,7 @@
 > A plugin-based AI Agent workflow framework that provides task management, workflow orchestration, and role management for Claude Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.3.16-blue.svg)](https://github.com/ph419/tackle-harness)
+[![Version](https://img.shields.io/badge/version-0.3.17-blue.svg)](https://github.com/ph419/tackle-harness)
 
 **[中文文档](https://github.com/ph419/tackle-harness/blob/main/README.md)**
 

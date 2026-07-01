@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.17] - 2026-07-01
+
+### Fixed
+
+- **loop driver 接 plan-reader 拓扑，修复有依赖 WP 按拓扑序串行的正确性（concurrent-dispatch Step 0 / next-dev-plan Batch 1）**：`plan-reader.buildDependencyGraph` 已产出 Kahn 拓扑 `order`，但 driver `loop.js` init 只读 `parsed.goal` 把 `dependencyGraph` 整个丢弃，`loop-snapshot` pending 纯由 goalWps 原序减 completed 构造——有依赖关系的 WP 按声明原序 dispatch，可能先调度依赖未就绪的 WP。三处接线（零红线、零竞态、可独立发版）：
+  - driver `loop.js` initOpts：把 `parsed.dependencyGraph` 挂到 goal 上（`state.goal.dependencyGraph`），供 engine/snapshot 消费
+  - `loop-snapshot._buildWorkPackages`：pending 按 `dependencyGraph.order`（拓扑序）排列（依赖在前），order 含 goal 外 WP 时越界排除
+  - engine `_think` 调度分支：第二道加 readyWave 过滤（candidate 依赖须全 completed），复用原 scope 越界保护「遍历 pending 找首个满足条件」模式；**不改 `_decide` / `DEFAULT_CONFIG`**（git diff 边界核实：仅 `:954-980` _think 区域两个 hunk）
+  - 降级安全：dependencyGraph 缺失时 engine/snapshot 退化为原序（pending[0] + scope 过滤），行为 = v0.3.15
+  - 测试：`test-loop-snapshot.js` +4（pending 拓扑序 / 降级原序 / completed 过滤 / order 越界排除）、`test-loop-engine.js` +6（_think readyWave 选择 / 反序兜底 / 依赖完成后变 ready + snapshot×engine 端到端 C→B→A 拓扑序串行集成）；全量 1737/0 零回归，build SUCCEEDED，validate 26 plugins 0错0警
+
 ## [0.3.16] - 2026-07-01
 
 ### Fixed
@@ -632,6 +643,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 插件注册表 (`plugin-registry.json`)
 - 运行时层：harness-build、plugin-loader、event-bus、state-store、config-manager、logger
 
+[0.3.17]: https://github.com/ph419/tackle-harness/compare/v0.3.16...v0.3.17
 [0.3.16]: https://github.com/ph419/tackle-harness/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/ph419/tackle-harness/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/ph419/tackle-harness/compare/v0.3.13...v0.3.14

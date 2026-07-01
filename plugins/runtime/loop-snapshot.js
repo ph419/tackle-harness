@@ -328,9 +328,17 @@ function buildWorkPackages(state, progress, lastChecklist) {
   var inGoal = function (wpId) {
     return inGoalStatic(goalWps, wpId);
   };
+  // Step 0 拓扑接线（next-dev-plan Batch 1）：pending 按 dependencyGraph.order（Kahn 拓扑
+  //   序）排序，让有依赖关系的 WP 按拓扑序串行（依赖在前），engine _think 取 pending[0]
+  //   即 readyWave[0]。降级：dependencyGraph 缺失/空时按 goalWps 原序（= v0.3.15）。
+  //   order 可能含 goal 外的 WP（plan 全集），故限定 goalWps 范围（inGoalStatic 越界保护）。
+  var depOrder = (goal.dependencyGraph && goal.dependencyGraph.order && goal.dependencyGraph.order.length)
+    ? goal.dependencyGraph.order : null;
   var pending = [];
-  for (var i = 0; i < goalWps.length; i++) {
-    if (!hasCompletion(goalWps[i])) pending.push(goalWps[i]);
+  var seq = depOrder || goalWps;
+  for (var i = 0; i < seq.length; i++) {
+    var wid = seq[i];
+    if (inGoalStatic(goalWps, wid) && !hasCompletion(wid)) pending.push(wid);
   }
   // failed：从 lastChecklist.failedItems 聚合 wpId（WP-176-1 的归一化产候选集，
   // snapshot 再排除 completed + 限定 goal 范围）。这让 engine `_think` retry 分支

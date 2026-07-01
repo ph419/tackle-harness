@@ -715,7 +715,22 @@ module.exports = {
     }
 
     // 4) init（支持 --loop-id 恢复）
-    var initOpts = { goal: parsed.goal };
+    //    Step 0 拓扑接线（next-dev-plan Batch 1）：把 plan-reader 产出的 Kahn 拓扑图
+    //    （dependencyGraph：{nodes,edges,order,hasCycle}）挂到 goal 上，供 engine _think
+    //    消费 readyWave（依赖就绪判定）+ loop-snapshot pending 按拓扑序排序。
+    //    降级安全：dependencyGraph 缺失时 engine/snapshot 退化为原序（goalWps 减 completed），
+    //    行为 = v0.3.15（zero-redline）。
+    var initGoal = parsed.goal;
+    if (parsed.dependencyGraph) {
+      initGoal = {};
+      for (var goalKey in parsed.goal) {
+        if (Object.prototype.hasOwnProperty.call(parsed.goal, goalKey)) {
+          initGoal[goalKey] = parsed.goal[goalKey];
+        }
+      }
+      initGoal.dependencyGraph = parsed.dependencyGraph;
+    }
+    var initOpts = { goal: initGoal };
     if (args.loopId) initOpts.loopId = args.loopId;
     if (args.maxIters) initOpts.maxIterations = args.maxIters;
     var initResult = await api.init(initOpts);

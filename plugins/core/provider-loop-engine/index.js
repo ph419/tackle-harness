@@ -954,10 +954,14 @@ class LoopEngineProvider extends ProviderPlugin {
     }
 
     // 3) 待执行调度（仅在 goal 范围内，不越界 P0，design.md §7.1）
+    //    Step 0 拓扑接线（next-dev-plan Batch 1）：第一道保留原越界保护（scope 过滤，
+    //    明确 noop reason）；第二道加 readyWave 过滤（candidate 依赖须全 completed）。
+    //    降级：dependencyGraph 缺失时跳过第二道，candidate = 越界保护后的 pending[0]，
+    //    行为 = v0.3.15。不改 _decide / DEFAULT_CONFIG（Step 0 硬约束）。
     if (wp.pending && wp.pending.length > 0) {
+      // 第一道：越界保护（原 scope 过滤，保留「不在 goal 范围」明确 reason）
       var candidate = wp.pending[0];
       if (goalWps && goalWps.indexOf(candidate) === -1) {
-        // 越界保护：只调度 goal 范围内的 WP
         var inScope = null;
         for (var i = 0; i < wp.pending.length; i++) {
           if (goalWps.indexOf(wp.pending[i]) !== -1) { inScope = wp.pending[i]; break; }
@@ -967,11 +971,40 @@ class LoopEngineProvider extends ProviderPlugin {
         }
         candidate = inScope;
       }
+      // 第二道：readyWave 过滤——candidate 依赖须全 completed（仅 dependencyGraph 存在时）
+      var depNodes = (goal.dependencyGraph && goal.dependencyGraph.nodes)
+        ? goal.dependencyGraph.nodes : null;
+      if (depNodes) {
+        var completedSet = wp.completed || [];
+        var isDepsReady = function (wid) {
+          var node = depNodes[wid];
+          if (!node) return true; // 节点缺失，视为无依赖
+          var deps = node.dependencies || [];
+          for (var d = 0; d < deps.length; d++) {
+            if (completedSet.indexOf(deps[d]) === -1) return false; // 依赖未完成
+          }
+          return true;
+        };
+        if (!isDepsReady(candidate)) {
+          // readyWave[0]：遍历 pending 找首个「goal 范围内 + 依赖就绪」的（拓扑序下通常
+          // 即 pending[0]，此分支为 pending 排序异常/环的防御兜底）
+          var ready = null;
+          for (var j = 0; j < wp.pending.length; j++) {
+            var pw = wp.pending[j];
+            if (goalWps && goalWps.indexOf(pw) === -1) continue; // 跳过越界
+            if (isDepsReady(pw)) { ready = pw; break; }
+          }
+          if (!ready) {
+            return { action: 'noop', reason: 'pending WP 依赖未就绪，等待依赖完成（拓扑）' };
+          }
+          candidate = ready;
+        }
+      }
       return {
         action: 'dispatch',
         targetWp: candidate,
         strategy: 'full_restart',
-        reason: '调度下一个未完成 WP（goal 范围内）',
+        reason: '调度下一个就绪 WP（goal 范围内，依赖就绪）',
       };
     }
 

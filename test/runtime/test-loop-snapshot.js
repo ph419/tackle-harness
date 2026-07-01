@@ -89,6 +89,70 @@ test.describe('_buildWorkPackages', function () {
 });
 
 // ─────────────────────────────────────────────
+// Section 1c: _buildWorkPackages pending 拓扑序（Step 0 / next-dev-plan Batch 1）
+//   dependencyGraph.order（Kahn 拓扑序）让 pending 按依赖关系排列（依赖在前），
+//   而非 goalWps 原序。降级：dependencyGraph 缺失 → goalWps 原序（= v0.3.15）。
+// ─────────────────────────────────────────────
+
+test.describe('_buildWorkPackages pending 拓扑序 (Step 0)', function () {
+  test('pending 按 dependencyGraph.order 拓扑序排列（依赖在前）', function () {
+    // WP-A 依赖 WP-B，WP-B 依赖 WP-C → order [WP-C, WP-B, WP-A]
+    var state = {
+      goal: {
+        wpIds: ['WP-A', 'WP-B', 'WP-C'],
+        dependencyGraph: {
+          nodes: {
+            'WP-A': { wpId: 'WP-A', dependencies: ['WP-B'], dependents: [] },
+            'WP-B': { wpId: 'WP-B', dependencies: ['WP-C'], dependents: ['WP-A'] },
+            'WP-C': { wpId: 'WP-C', dependencies: [], dependents: ['WP-B'] },
+          },
+          edges: [{ from: 'WP-A', to: 'WP-B' }, { from: 'WP-B', to: 'WP-C' }],
+          order: ['WP-C', 'WP-B', 'WP-A'],
+          hasCycle: false,
+          cycle: [],
+        },
+      },
+    };
+    var wp = snapshot._buildWorkPackages(state, { completed: [], incomplete: ['WP-A', 'WP-B', 'WP-C'] });
+    assert.deepStrictEqual(wp.pending, ['WP-C', 'WP-B', 'WP-A']);
+  });
+
+  test('dependencyGraph 缺失 → pending 退化为 goalWps 原序（降级 = v0.3.15）', function () {
+    var state = { goal: { wpIds: ['WP-A', 'WP-B', 'WP-C'] } };
+    var wp = snapshot._buildWorkPackages(state, { completed: ['WP-B'], incomplete: ['WP-A', 'WP-C'] });
+    assert.deepStrictEqual(wp.pending, ['WP-A', 'WP-C']);
+  });
+
+  test('拓扑序 + 已完成过滤（order 含已完成 WP 时排除）', function () {
+    var state = {
+      goal: {
+        wpIds: ['WP-A', 'WP-B', 'WP-C'],
+        dependencyGraph: {
+          nodes: {}, edges: [], order: ['WP-C', 'WP-B', 'WP-A'], hasCycle: false, cycle: [],
+        },
+      },
+    };
+    var wp = snapshot._buildWorkPackages(state, { completed: ['WP-C'], incomplete: ['WP-A', 'WP-B'] });
+    assert.deepStrictEqual(wp.pending, ['WP-B', 'WP-A']);
+  });
+
+  test('order 含 goal 外 WP → 越界排除（仅保留 goalWps 范围内）', function () {
+    var state = {
+      goal: {
+        wpIds: ['WP-A', 'WP-B'],
+        dependencyGraph: {
+          nodes: {}, edges: [],
+          order: ['WP-Z', 'WP-B', 'WP-A'],
+          hasCycle: false, cycle: [],
+        },
+      },
+    };
+    var wp = snapshot._buildWorkPackages(state, { completed: [], incomplete: ['WP-A', 'WP-B'] });
+    assert.deepStrictEqual(wp.pending, ['WP-B', 'WP-A']);
+  });
+});
+
+// ─────────────────────────────────────────────
 // Section 1b: _buildWorkPackages failed 填充（WP-176-2 / 修复偏差1）
 //   从真实 lastChecklist.failedItems 经 evaluator 归一化填充 workPackages.failed，
 //   覆盖：有 failedItems → failed 含去重 wpId；排除 completed；越界排除；
